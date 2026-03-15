@@ -46,6 +46,7 @@ _vectorstore = None
 _embeddings = None
 _llm = None
 _twitter_handler = None
+_telegram_handler = None
 _knowledge_memory = None
 
 
@@ -119,6 +120,24 @@ def get_twitter_handler():
         if CONFIG.get("twitter", {}).get("api_key"):
             _twitter_handler.configure(CONFIG.get("twitter", {}))
     return _twitter_handler
+
+
+def get_telegram_handler():
+    """Get or create Telegram handler instance."""
+    global _telegram_handler
+    if _telegram_handler is None:
+        from telegram_handler import TelegramHandler
+        
+        def llm_callback(prompt):
+            """Callback to generate LLM responses for Telegram messages."""
+            llm = get_llm()
+            return llm.invoke(prompt)
+        
+        _telegram_handler = TelegramHandler(CONFIG, llm_callback)
+        # Initialize with existing config if available
+        if CONFIG.get("telegram", {}).get("bot_token"):
+            _telegram_handler.configure(CONFIG.get("telegram", {}))
+    return _telegram_handler
 
 
 def get_knowledge_memory():
@@ -857,6 +876,185 @@ def twitter_search():
 
 
 # ============================================================
+#  TELEGRAM API ROUTES
+# ============================================================
+
+@app.route("/api/telegram/status", methods=["GET"])
+def telegram_status():
+    """Get Telegram bot status."""
+    try:
+        handler = get_telegram_handler()
+        return jsonify(handler.get_status())
+    except Exception as e:
+        return jsonify({"error": str(e), "configured": False})
+
+
+@app.route("/api/telegram/config", methods=["GET"])
+def get_telegram_config():
+    """Get current Telegram configuration (excluding secrets)."""
+    telegram_conf = CONFIG.get("telegram", {})
+    return jsonify({
+        "bot_token_set": bool(telegram_conf.get("bot_token")),
+        "bot_username": telegram_conf.get("bot_username", ""),
+        "respond_to_mentions": telegram_conf.get("respond_to_mentions", True),
+        "respond_to_direct": telegram_conf.get("respond_to_direct", True),
+        "task": telegram_conf.get("task", "")
+    })
+
+
+@app.route("/api/telegram/config", methods=["PUT"])
+def update_telegram_config():
+    """Update Telegram configuration."""
+    data = request.json
+    
+    # Get existing telegram config or create new
+    telegram_conf = CONFIG.get("telegram", {})
+    
+    # Update allowed fields
+    allowed = ["bot_token", "bot_username", "respond_to_mentions", 
+               "respond_to_direct", "task"]
+    for key in allowed:
+        if key in data:
+            telegram_conf[key] = data[key]
+    
+    CONFIG["telegram"] = telegram_conf
+    
+    # Save to config file
+    with open(CONFIG_PATH, "w") as f:
+        json.dump(CONFIG, f, indent=2, ensure_ascii=False)
+    
+    # Reconfigure handler
+    try:
+        handler = get_telegram_handler()
+        handler.configure(telegram_conf)
+        status = handler.get_status()
+        return jsonify({"success": True, "status": status})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@app.route("/api/telegram/start", methods=["POST"])
+def telegram_start():
+    """Start the Telegram bot."""
+    try:
+        handler = get_telegram_handler()
+        if not handler.get_status().get("configured"):
+            return jsonify({"error": "Telegram bot not configured"}), 400
+        
+        result = handler.start_bot()
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@app.route("/api/telegram/stop", methods=["POST"])
+def telegram_stop():
+    """Stop the Telegram bot."""
+    try:
+        handler = get_telegram_handler()
+        result = handler.stop_bot()
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@app.route("/api/telegram/history", methods=["GET"])
+def telegram_history():
+    """Get message processing history."""
+    try:
+        handler = get_telegram_handler()
+        limit = request.args.get("limit", 50, type=int)
+        history = handler.get_history(limit=limit)
+        return jsonify(history)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/telegram/history", methods=["DELETE"])
+def telegram_clear_history():
+    """Clear message processing history."""
+    try:
+        handler = get_telegram_handler()
+        result = handler.clear_history()
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/telegram/memories", methods=["GET"])
+def telegram_get_memories():
+    """Get user memory summaries."""
+    try:
+        handler = get_telegram_handler()
+        limit = request.args.get("limit", 50, type=int)
+        memories = handler.get_user_memories(limit=limit)
+        return jsonify(memories)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/telegram/memories/<int:user_id>/<int:chat_id>", methods=["GET"])
+def telegram_get_user_memory(user_id, chat_id):
+    """Get detailed memory for a specific user."""
+    try:
+        handler = get_telegram_handler()
+        memory = handler.get_user_memory_detail(user_id, chat_id)
+        return jsonify(memory)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/telegram/memories/<int:user_id>/<int:chat_id>", methods=["DELETE"])
+def telegram_clear_user_memory(user_id, chat_id):
+    """Clear memory for a specific user."""
+    try:
+        handler = get_telegram_handler()
+        result = handler.clear_user_memory(user_id, chat_id)
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/telegram/memories", methods=["DELETE"])
+def telegram_clear_all_memories():
+    """Clear all user memories."""
+    try:
+        handler = get_telegram_handler()
+        result = handler.clear_all_memories()
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/telegram/memories/<int:user_id>/<int:chat_id>/fact", methods=["POST"])
+def telegram_add_user_fact(user_id, chat_id):
+    """Add a fact about a user."""
+    data = request.json
+    fact = data.get("fact", "")
+    
+    if not fact:
+        return jsonify({"error": "No fact provided"}), 400
+    
+    try:
+        handler = get_telegram_handler()
+        result = handler.add_user_fact(user_id, chat_id, fact)
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/telegram/memory-stats", methods=["GET"])
+def telegram_memory_stats():
+    """Get user memory statistics."""
+    try:
+        handler = get_telegram_handler()
+        stats = handler.user_memory.get_statistics()
+        return jsonify(stats)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+# ============================================================
 if __name__ == "__main__":
     print(f"\n🏛️ LOCAL LLM SERVANT v2 starting...")
     print(f"   Model:       {CONFIG['model']}")
@@ -877,6 +1075,9 @@ if __name__ == "__main__":
     
     twitter_configured = bool(CONFIG.get("twitter", {}).get("api_key"))
     print(f"   Twitter:     {'✓ Configured' if twitter_configured else '✗ Not configured'}")
+    
+    telegram_configured = bool(CONFIG.get("telegram", {}).get("bot_token"))
+    print(f"   Telegram:    {'✓ Configured' if telegram_configured else '✗ Not configured'}")
     print()
 
     # Unload unused models on startup

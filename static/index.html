@@ -759,6 +759,144 @@
             </div>
         </div>
 
+        <!-- Telegram Control Panel -->
+        <div class="panel">
+            <div class="tabs">
+                <button class="tab active" data-tab="telegram-control">📱 Telegram Kontrolle</button>
+                <button class="tab" data-tab="telegram-history">📜 Historie</button>
+                <button class="tab" data-tab="telegram-memory">🧠 Nutzer-Gedächtnis</button>
+                <button class="tab" data-tab="telegram-config">⚙️ Konfiguration</button>
+            </div>
+            
+            <!-- Telegram Control Tab -->
+            <div id="telegram-control" class="tab-content active">
+                <div class="panel-body">
+                    <div class="twitter-stats">
+                        <div class="stat-card">
+                            <div class="stat-value" id="telegram-messages">0</div>
+                            <div class="stat-label">Nachrichten</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-value" id="telegram-replied">0</div>
+                            <div class="stat-label">Antworten</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-value" id="telegram-users">0</div>
+                            <div class="stat-label">Nutzer im Gedächtnis</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-value" id="telegram-facts">0</div>
+                            <div class="stat-label">Gelernte Fakten</div>
+                        </div>
+                    </div>
+                    
+                    <div class="status" style="margin-bottom: 1rem;">
+                        <span class="status-dot" id="telegram-status"></span>
+                        <span id="telegram-status-text">Bot: Inaktiv</span>
+                    </div>
+                    
+                    <div class="twitter-controls">
+                        <button class="btn btn-primary" id="btn-telegram-start" onclick="telegramStartBot()">
+                            ▶️ Bot Starten
+                        </button>
+                        <button class="btn btn-secondary" id="btn-telegram-stop" onclick="telegramStopBot()">
+                            ⏹️ Bot Stoppen
+                        </button>
+                        <button class="btn btn-secondary" onclick="telegramRefreshStatus()">
+                            🔄 Status Aktualisieren
+                        </button>
+                    </div>
+                    
+                    <div class="divider"></div>
+                    
+                    <h3 style="margin-bottom: 1rem; font-family: 'Cinzel', serif;">Bot Username</h3>
+                    <p id="telegram-username" style="font-style: italic; color: var(--text-light);">
+                        Nicht konfiguriert
+                    </p>
+                    
+                    <h3 style="margin: 1rem 0; font-family: 'Cinzel', serif;">Aktuelle Aufgabe</h3>
+                    <p id="telegram-task" style="color: var(--text-light);">
+                        Keine Aufgabe konfiguriert
+                    </p>
+                </div>
+            </div>
+            
+            <!-- Telegram History Tab -->
+            <div id="telegram-history" class="tab-content">
+                <div class="panel-body">
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 1rem;">
+                        <h3 style="font-family: 'Cinzel', serif;">Nachrichtenverlauf</h3>
+                        <div>
+                            <button class="btn btn-sm btn-secondary" onclick="loadTelegramHistory()">🔄 Aktualisieren</button>
+                            <button class="btn btn-sm btn-danger" onclick="clearTelegramHistory()">🗑️ Löschen</button>
+                        </div>
+                    </div>
+                    <div class="tweet-list" id="telegram-history-list">
+                        <p style="text-align: center; color: var(--text-light);">Keine Nachrichten in der Historie</p>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Telegram Memory Tab -->
+            <div id="telegram-memory" class="tab-content">
+                <div class="panel-body">
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 1rem;">
+                        <h3 style="font-family: 'Cinzel', serif;">Nutzer-Gedächtnis</h3>
+                        <div>
+                            <button class="btn btn-sm btn-secondary" onclick="loadTelegramMemories()">🔄 Aktualisieren</button>
+                            <button class="btn btn-sm btn-danger" onclick="clearAllTelegramMemories()">🗑️ Alle Löschen</button>
+                        </div>
+                    </div>
+                    <p style="margin-bottom: 1rem; color: var(--text-light); font-size: 0.9rem;">
+                        Der Bot merkt sich Informationen über Nutzer, um personalisierte Antworten zu geben — auch nach Tagen oder Wochen.
+                    </p>
+                    <div class="tweet-list" id="telegram-memory-list">
+                        <p style="text-align: center; color: var(--text-light);">Keine Nutzer im Gedächtnis</p>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Telegram Config Tab -->
+            <div id="telegram-config" class="tab-content">
+                <div class="panel-body">
+                    <form id="telegram-config-form">
+                        <div class="form-group">
+                            <label>Bot Token (von @BotFather)</label>
+                            <input type="password" id="telegram-bot-token" placeholder="Bot Token eingeben">
+                        </div>
+                        <div class="form-group">
+                            <label>Bot Username (ohne @)</label>
+                            <input type="text" id="telegram-bot-username" placeholder="z.B. mein_bot">
+                        </div>
+                        <div class="divider"></div>
+                        <div class="form-group">
+                            <label>Aufgabe (Wie soll der Bot sich verhalten?)</label>
+                            <textarea id="telegram-task-input" placeholder="z.B. Antworte hilfsbereit und freundlich auf alle Nachrichten"></textarea>
+                        </div>
+                        <div class="config-grid">
+                            <div class="form-group">
+                                <label>Auf Erwähnungen in Gruppen antworten</label>
+                                <select id="telegram-respond-mentions">
+                                    <option value="true">Aktiviert</option>
+                                    <option value="false">Deaktiviert</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>Auf Direktnachrichten antworten</label>
+                                <select id="telegram-respond-direct">
+                                    <option value="true">Aktiviert</option>
+                                    <option value="false">Deaktiviert</option>
+                                </select>
+                            </div>
+                        </div>
+                        <button type="submit" class="btn btn-primary" style="width: 100%;">
+                            💾 Konfiguration Speichern
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+
         <!-- AI Thoughts Panel -->
         <div class="panel">
             <div class="panel-header">
@@ -890,13 +1028,14 @@
         document.querySelectorAll('.tab').forEach(tab => {
             tab.addEventListener('click', () => {
                 const tabId = tab.dataset.tab;
+                const parentPanel = tab.closest('.panel');
                 
-                // Update tab buttons
-                document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+                // Update tab buttons within this panel only
+                parentPanel.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
                 tab.classList.add('active');
                 
-                // Update tab content
-                document.querySelectorAll('.tab-content').forEach(content => {
+                // Update tab content within this panel only
+                parentPanel.querySelectorAll('.tab-content').forEach(content => {
                     content.classList.remove('active');
                 });
                 document.getElementById(tabId).classList.add('active');
@@ -1173,6 +1312,298 @@
         }
 
         // ============================================================
+        // Telegram Functions
+        // ============================================================
+        async function telegramRefreshStatus() {
+            try {
+                addTerminalLine('Aktualisiere Telegram Status...', 'action');
+                
+                const response = await fetch('/api/telegram/status');
+                const status = await response.json();
+                
+                // Update status indicator
+                const statusDot = document.getElementById('telegram-status');
+                const statusText = document.getElementById('telegram-status-text');
+                
+                if (status.running) {
+                    statusDot.className = 'status-dot active';
+                    statusText.textContent = 'Bot: Aktiv';
+                } else if (status.configured) {
+                    statusDot.className = 'status-dot inactive';
+                    statusText.textContent = 'Bot: Inaktiv';
+                } else {
+                    statusDot.className = 'status-dot error';
+                    statusText.textContent = 'Nicht konfiguriert';
+                }
+                
+                // Update stats
+                document.getElementById('telegram-messages').textContent = status.messages_total || 0;
+                document.getElementById('telegram-replied').textContent = status.messages_replied || 0;
+                
+                // Update memory stats
+                const memStats = status.user_memory || {};
+                document.getElementById('telegram-users').textContent = memStats.total_users || 0;
+                document.getElementById('telegram-facts').textContent = memStats.total_facts || 0;
+                
+                // Update username and task
+                document.getElementById('telegram-username').textContent = 
+                    status.bot_username ? `@${status.bot_username}` : 'Nicht konfiguriert';
+                document.getElementById('telegram-task').textContent = 
+                    status.task || 'Keine Aufgabe konfiguriert';
+                
+                addTerminalLine('Telegram Status aktualisiert', 'response');
+                addThought('Telegram Update', `Bot: ${status.running ? 'Aktiv' : 'Inaktiv'}, ${memStats.total_users || 0} Nutzer im Gedächtnis`);
+                
+            } catch (error) {
+                addTerminalLine(`Fehler: ${error.message}`, 'error');
+            }
+        }
+
+        async function telegramStartBot() {
+            try {
+                document.getElementById('btn-telegram-start').disabled = true;
+                addTerminalLine('Starte Telegram Bot...', 'action');
+                addThought('Telegram', 'Starte Bot...');
+                
+                const response = await fetch('/api/telegram/start', { method: 'POST' });
+                const result = await response.json();
+                
+                if (result.success) {
+                    addTerminalLine('Telegram Bot gestartet', 'response');
+                    addThought('Telegram', 'Bot wurde erfolgreich gestartet');
+                } else {
+                    addTerminalLine(`Fehler: ${result.message || result.error}`, 'error');
+                }
+                
+                telegramRefreshStatus();
+            } catch (error) {
+                addTerminalLine(`Fehler: ${error.message}`, 'error');
+            } finally {
+                document.getElementById('btn-telegram-start').disabled = false;
+            }
+        }
+
+        async function telegramStopBot() {
+            try {
+                addTerminalLine('Stoppe Telegram Bot...', 'action');
+                
+                const response = await fetch('/api/telegram/stop', { method: 'POST' });
+                const result = await response.json();
+                
+                addTerminalLine('Telegram Bot gestoppt', 'response');
+                addThought('Telegram', 'Bot wurde gestoppt');
+                
+                telegramRefreshStatus();
+            } catch (error) {
+                addTerminalLine(`Fehler: ${error.message}`, 'error');
+            }
+        }
+
+        async function loadTelegramHistory() {
+            try {
+                const response = await fetch('/api/telegram/history?limit=50');
+                const history = await response.json();
+                
+                const listEl = document.getElementById('telegram-history-list');
+                
+                if (!Array.isArray(history) || history.length === 0) {
+                    listEl.innerHTML = '<p style="text-align: center; color: var(--text-light);">Keine Nachrichten in der Historie</p>';
+                    return;
+                }
+                
+                listEl.innerHTML = history.map(msg => `
+                    <div class="tweet-item">
+                        <div class="tweet-header">
+                            <span class="tweet-author">${escapeHtml(msg.first_name || msg.username || 'Unbekannt')}</span>
+                            <span class="tweet-time">${formatDate(msg.processed_at)}</span>
+                        </div>
+                        <div class="tweet-text">${escapeHtml(msg.text || '')}</div>
+                        ${msg.generated_response ? `
+                            <div class="tweet-response">
+                                <strong>Antwort:</strong> ${escapeHtml(msg.generated_response)}
+                            </div>
+                        ` : ''}
+                        <div class="tweet-actions">
+                            ${msg.replied ? 
+                                '<span style="color: #4caf50;">✓ Geantwortet</span>' : 
+                                (msg.should_respond ? '<span style="color: #ff9800;">Ausstehend</span>' : '<span style="color: #9e9e9e;">Keine Antwort nötig</span>')
+                            }
+                        </div>
+                    </div>
+                `).join('');
+                
+            } catch (error) {
+                addTerminalLine(`Fehler beim Laden der Telegram-Historie: ${error.message}`, 'error');
+            }
+        }
+
+        async function clearTelegramHistory() {
+            if (!confirm('Bist du sicher, dass du den gesamten Nachrichtenverlauf löschen möchtest?')) {
+                return;
+            }
+            
+            try {
+                await fetch('/api/telegram/history', { method: 'DELETE' });
+                addTerminalLine('Telegram-Historie gelöscht', 'response');
+                loadTelegramHistory();
+                telegramRefreshStatus();
+            } catch (error) {
+                addTerminalLine(`Fehler: ${error.message}`, 'error');
+            }
+        }
+
+        async function loadTelegramMemories() {
+            try {
+                const response = await fetch('/api/telegram/memories?limit=50');
+                const memories = await response.json();
+                
+                const listEl = document.getElementById('telegram-memory-list');
+                
+                if (!Array.isArray(memories) || memories.length === 0) {
+                    listEl.innerHTML = '<p style="text-align: center; color: var(--text-light);">Keine Nutzer im Gedächtnis</p>';
+                    return;
+                }
+                
+                listEl.innerHTML = memories.map(user => `
+                    <div class="tweet-item">
+                        <div class="tweet-header">
+                            <span class="tweet-author">${escapeHtml(user.first_name || '')} ${escapeHtml(user.last_name || '')} ${user.username ? '(@' + escapeHtml(user.username) + ')' : ''}</span>
+                            <span class="tweet-time">Zuletzt: ${formatDate(user.last_seen)}</span>
+                        </div>
+                        <div class="tweet-text">
+                            <strong>${user.interaction_count}</strong> Interaktionen • 
+                            <strong>${user.facts_count}</strong> gelernte Fakten
+                        </div>
+                        <div class="tweet-actions">
+                            <button class="btn btn-sm btn-secondary" onclick="viewUserMemory(${user.user_id}, ${user.chat_id})">Details</button>
+                            <button class="btn btn-sm btn-danger" onclick="clearUserMemory(${user.user_id}, ${user.chat_id})">Löschen</button>
+                        </div>
+                    </div>
+                `).join('');
+                
+            } catch (error) {
+                addTerminalLine(`Fehler beim Laden der Nutzer-Memories: ${error.message}`, 'error');
+            }
+        }
+
+        async function viewUserMemory(userId, chatId) {
+            try {
+                const response = await fetch(`/api/telegram/memories/${userId}/${chatId}`);
+                const memory = await response.json();
+                
+                let details = `Nutzer: ${memory.first_name || ''} ${memory.last_name || ''}\n`;
+                details += `Username: @${memory.username || 'N/A'}\n`;
+                details += `Erste Interaktion: ${formatDate(memory.first_seen)}\n`;
+                details += `Letzte Interaktion: ${formatDate(memory.last_seen)}\n`;
+                details += `Anzahl Interaktionen: ${memory.interaction_count}\n\n`;
+                
+                if (memory.facts && memory.facts.length > 0) {
+                    details += `Gelernte Fakten:\n`;
+                    memory.facts.forEach(fact => {
+                        details += `- ${fact}\n`;
+                    });
+                }
+                
+                alert(details);
+                addThought('Nutzer-Memory', `Details für ${memory.first_name || memory.username || userId} angezeigt`);
+                
+            } catch (error) {
+                addTerminalLine(`Fehler: ${error.message}`, 'error');
+            }
+        }
+
+        async function clearUserMemory(userId, chatId) {
+            if (!confirm('Bist du sicher, dass du das Gedächtnis für diesen Nutzer löschen möchtest?')) {
+                return;
+            }
+            
+            try {
+                await fetch(`/api/telegram/memories/${userId}/${chatId}`, { method: 'DELETE' });
+                addTerminalLine(`Nutzer-Gedächtnis gelöscht`, 'response');
+                loadTelegramMemories();
+                telegramRefreshStatus();
+            } catch (error) {
+                addTerminalLine(`Fehler: ${error.message}`, 'error');
+            }
+        }
+
+        async function clearAllTelegramMemories() {
+            if (!confirm('Bist du sicher, dass du ALLE Nutzer-Gedächtnisse löschen möchtest? Diese Aktion kann nicht rückgängig gemacht werden!')) {
+                return;
+            }
+            
+            try {
+                await fetch('/api/telegram/memories', { method: 'DELETE' });
+                addTerminalLine('Alle Nutzer-Gedächtnisse gelöscht', 'response');
+                loadTelegramMemories();
+                telegramRefreshStatus();
+            } catch (error) {
+                addTerminalLine(`Fehler: ${error.message}`, 'error');
+            }
+        }
+
+        // Telegram Config Form
+        document.getElementById('telegram-config-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const config = {
+                bot_token: document.getElementById('telegram-bot-token').value,
+                bot_username: document.getElementById('telegram-bot-username').value,
+                task: document.getElementById('telegram-task-input').value,
+                respond_to_mentions: document.getElementById('telegram-respond-mentions').value === 'true',
+                respond_to_direct: document.getElementById('telegram-respond-direct').value === 'true'
+            };
+            
+            // Only include non-empty credentials
+            const cleanConfig = {};
+            Object.keys(config).forEach(key => {
+                if (config[key] !== '' && config[key] !== null) {
+                    cleanConfig[key] = config[key];
+                }
+            });
+            
+            try {
+                addTerminalLine('Speichere Telegram Konfiguration...', 'action');
+                
+                const response = await fetch('/api/telegram/config', {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(cleanConfig)
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    addTerminalLine('Telegram-Konfiguration gespeichert', 'response');
+                    addThought('Konfiguration', 'Telegram-Einstellungen wurden aktualisiert');
+                    telegramRefreshStatus();
+                    
+                    // Clear token field after save
+                    document.getElementById('telegram-bot-token').value = '';
+                } else {
+                    addTerminalLine(`Fehler: ${result.error}`, 'error');
+                }
+            } catch (error) {
+                addTerminalLine(`Fehler: ${error.message}`, 'error');
+            }
+        });
+
+        async function loadTelegramConfig() {
+            try {
+                const response = await fetch('/api/telegram/config');
+                const config = await response.json();
+                
+                document.getElementById('telegram-bot-username').value = config.bot_username || '';
+                document.getElementById('telegram-task-input').value = config.task || '';
+                document.getElementById('telegram-respond-mentions').value = config.respond_to_mentions !== false ? 'true' : 'false';
+                document.getElementById('telegram-respond-direct').value = config.respond_to_direct !== false ? 'true' : 'false';
+                
+            } catch (error) {
+                console.error('Error loading Telegram config:', error);
+            }
+        }
+
+        // ============================================================
         // Chat Functions
         // ============================================================
         async function sendMessage() {
@@ -1341,10 +1772,15 @@
             twitterRefreshStatus();
             loadTwitterConfig();
             loadTwitterHistory();
+            telegramRefreshStatus();
+            loadTelegramConfig();
+            loadTelegramHistory();
+            loadTelegramMemories();
             
             // Periodic status updates
             setInterval(checkHealth, 30000);
             setInterval(twitterRefreshStatus, 60000);
+            setInterval(telegramRefreshStatus, 60000);
             
             addTerminalLine('Dashboard initialisiert. Ave Caesar!', 'response');
         });

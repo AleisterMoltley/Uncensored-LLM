@@ -40,6 +40,7 @@ uploads/
 memory/
 chromadb_data/
 twitter_data/
+telegram_data/
 
 # Logs
 *.log
