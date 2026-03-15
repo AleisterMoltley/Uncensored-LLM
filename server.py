@@ -622,7 +622,9 @@ def twitter_scanner_stop():
     try:
         handler = get_twitter_handler()
         result = handler.stop_scanner()
-        return jupytext({"success": True, "message": "Scanner stopped"})
+        return jsonify({"success": True, "message": "Scanner stopped"})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
 @app.route("/api/twitter/history", methods=["GET"])
