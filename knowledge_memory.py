@@ -16,6 +16,11 @@ DEFAULT_MAX_MEMORY_SIZE_MB = 10  # Maximum memory file size in MB
 DEFAULT_MAX_INSIGHTS_PER_TOPIC = 50  # Max insights per topic before compression
 DEFAULT_SUMMARY_THRESHOLD = 20  # Number of insights before summarizing
 
+# Insight extraction constants
+MIN_INSIGHT_WORDS = 5  # Minimum words for a sentence to be considered an insight
+MAX_INSIGHT_WORDS = 40  # Maximum words for a sentence to be considered an insight
+SIMILARITY_THRESHOLD = 0.6  # Word overlap threshold for merging similar insights (60%)
+
 
 class KnowledgeMemory:
     """
@@ -160,9 +165,10 @@ class KnowledgeMemory:
                 # Simple similarity check using common words
                 words_i = set(content_i.split())
                 words_j = set(content_j.split())
-                if len(words_i) > 0 and len(words_j) > 0:
-                    overlap = len(words_i & words_j) / min(len(words_i), len(words_j))
-                    if overlap > 0.6:  # 60% word overlap
+                min_word_count = min(len(words_i), len(words_j))
+                if min_word_count > 0:
+                    overlap = len(words_i & words_j) / min_word_count
+                    if overlap > SIMILARITY_THRESHOLD:
                         similar_group.append(other)
                         used_indices.add(j)
             
@@ -386,7 +392,7 @@ class KnowledgeMemory:
         
         # Check sentence has substantive content (enough words)
         words = sentence.split()
-        if len(words) >= 5 and len(words) <= 40:
+        if len(words) >= MIN_INSIGHT_WORDS and len(words) <= MAX_INSIGHT_WORDS:
             return True
         
         return False

@@ -9,6 +9,9 @@ import unittest
 
 from knowledge_memory import KnowledgeMemory
 
+# Test constants
+MAX_EXPECTED_INSIGHTS_AFTER_COMPRESSION = 100  # Upper bound for insights after compression
+
 
 class TestKnowledgeMemory(unittest.TestCase):
     """Test cases for KnowledgeMemory class."""
@@ -171,7 +174,7 @@ class TestKnowledgeMemory(unittest.TestCase):
         # Should have processed all PDFs
         self.assertEqual(stats["total_pdfs_processed"], 30)
         # Insights should be bounded due to compression
-        self.assertLessEqual(stats["total_insights"], 100)  # Reasonable upper bound
+        self.assertLessEqual(stats["total_insights"], MAX_EXPECTED_INSIGHTS_AFTER_COMPRESSION)
 
 
 class TestKnowledgeMemorySize(unittest.TestCase):
