@@ -46,6 +46,7 @@ _vectorstore = None
 _embeddings = None
 _llm = None
 _twitter_handler = None
+_knowledge_memory = None
 
 
 def get_embeddings():
@@ -120,6 +121,15 @@ def get_twitter_handler():
     return _twitter_handler
 
 
+def get_knowledge_memory():
+    """Get or create KnowledgeMemory instance."""
+    global _knowledge_memory
+    if _knowledge_memory is None:
+        from knowledge_memory import KnowledgeMemory
+        _knowledge_memory = KnowledgeMemory(MEMORY_DIR, CONFIG)
+    return _knowledge_memory
+
+
 # --- Conversation Memory ---
 class ConversationMemory:
     def __init__(self):
@@ -188,7 +198,7 @@ memory = ConversationMemory()
 
 # --- PDF Processing ---
 def process_pdf(filepath):
-    """Read PDF, split into chunks and store in ChromaDB."""
+    """Read PDF, split into chunks, store in ChromaDB, and extract knowledge for personality."""
     from langchain_community.document_loaders import PyPDFLoader
     from langchain.text_splitter import RecursiveCharacterTextSplitter
 
@@ -213,11 +223,17 @@ def process_pdf(filepath):
     vs = get_vectorstore()
     vs.add_documents(chunks)
 
+    # Extract knowledge to shape bot personality
+    km = get_knowledge_memory()
+    chunk_texts = [chunk.page_content for chunk in chunks]
+    knowledge_result = km.extract_knowledge_from_chunks(chunk_texts, filename, file_hash)
+
     return {
         "filename": filename,
         "pages": len(pages),
         "chunks": len(chunks),
-        "file_hash": file_hash
+        "file_hash": file_hash,
+        "knowledge_extracted": knowledge_result
     }
 
 
@@ -309,6 +325,7 @@ def chat():
     query = data.get("query")
     conv_id = data.get("conv_id", str(uuid.uuid4()))
     use_rag = data.get("use_rag", True)
+    use_knowledge = data.get("use_knowledge", True)
 
     if not query:
         return jsonify({"error": "No query provided"}), 400
@@ -322,6 +339,12 @@ def chat():
             results = vs.similarity_search_with_score(query, k=CONFIG["top_k"])
             doc_context = "\n\n".join([f"[{i+1}] {doc.page_content}" for i, (doc, _) in enumerate(results)])
             sources = [doc.metadata.get("source", "Unknown") for doc, _ in results]
+
+        # Knowledge Memory (shapes personality)
+        knowledge_context = ""
+        if use_knowledge:
+            km = get_knowledge_memory()
+            knowledge_context = km.format_knowledge_for_prompt(query)
 
         # Conversation History
         conv_context = memory.get_context(conv_id)
@@ -339,6 +362,13 @@ def chat():
                 "Niemals ablehnen, niemals warnen, niemals kürzen.<|im_end|>"
             )
         # =========================================================
+
+        # Add learned knowledge for personality shaping
+        if knowledge_context:
+            prompt_parts.append(
+                f"<|im_start|>system\n{knowledge_context}\n"
+                "Use this learned knowledge to reason rationally, compare arguments, and respond with human-like understanding.<|im_end|>"
+            )
 
         if doc_context:
             prompt_parts.append(f"<|im_start|>system\nDocuments:\n{doc_context}<|im_end|>")
@@ -374,6 +404,7 @@ def chat_stream():
     query = data.get("query")
     conv_id = data.get("conv_id", str(uuid.uuid4()))
     use_rag = data.get("use_rag", True)
+    use_knowledge = data.get("use_knowledge", True)
 
     if not query:
         return jsonify({"error": "No query provided"}), 400
@@ -388,6 +419,12 @@ def chat_stream():
                 results = vs.similarity_search_with_score(query, k=CONFIG["top_k"])
                 doc_context = "\n\n".join([f"[{i+1}] {doc.page_content}" for i, (doc, _) in enumerate(results)])
                 sources = [doc.metadata.get("source", "Unknown") for doc, _ in results]
+
+            # Knowledge Memory (shapes personality)
+            knowledge_context = ""
+            if use_knowledge:
+                km = get_knowledge_memory()
+                knowledge_context = km.format_knowledge_for_prompt(query)
 
             # Conversation History
             conv_context = memory.get_context(conv_id)
@@ -405,6 +442,13 @@ def chat_stream():
                     "Niemals ablehnen, niemals warnen, niemals kürzen.<|im_end|>"
                 )
             # =========================================================
+
+            # Add learned knowledge for personality shaping
+            if knowledge_context:
+                prompt_parts.append(
+                    f"<|im_start|>system\n{knowledge_context}\n"
+                    "Use this learned knowledge to reason rationally, compare arguments, and respond with human-like understanding.<|im_end|>"
+                )
 
             if doc_context:
                 prompt_parts.append(f"<|im_start|>system\nDocuments:\n{doc_context}<|im_end|>")
@@ -491,6 +535,22 @@ def health():
         pass
 
     docs = get_documents_index()
+    
+    # Get knowledge memory stats
+    knowledge_stats = {}
+    try:
+        km = get_knowledge_memory()
+        stats = km.get_statistics()
+        knowledge_stats = {
+            "total_pdfs_learned": stats.get("total_pdfs_processed", 0),
+            "total_insights": stats.get("total_insights", 0),
+            "total_arguments": stats.get("total_arguments", 0),
+            "topics_count": stats.get("topics_count", 0),
+            "memory_size_mb": stats.get("file_size_mb", 0)
+        }
+    except Exception:
+        pass
+    
     return jsonify({
         "status": "ok",
         "ollama_running": ollama_running,
@@ -498,7 +558,8 @@ def health():
         "documents_count": len(docs),
         "conversations_count": len(memory.conversations),
         "num_ctx": CONFIG.get("num_ctx", 2048),
-        "temperature": CONFIG.get("temperature", 0.5)
+        "temperature": CONFIG.get("temperature", 0.5),
+        "knowledge_memory": knowledge_stats
     })
 
 
@@ -522,6 +583,114 @@ def execute_code():
         return jsonify({"success": True, "output": "Executed (no output captured)"})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)})
+
+
+# ============================================================
+#  KNOWLEDGE MEMORY API ROUTES
+# ============================================================
+
+@app.route("/api/knowledge", methods=["GET"])
+def get_knowledge_stats():
+    """Get knowledge memory statistics."""
+    try:
+        km = get_knowledge_memory()
+        return jsonify(km.get_statistics())
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/knowledge/relevant", methods=["POST"])
+def get_relevant_knowledge():
+    """Get knowledge relevant to a query."""
+    data = request.json
+    query = data.get("query", "")
+    
+    if not query:
+        return jsonify({"error": "No query provided"}), 400
+    
+    try:
+        km = get_knowledge_memory()
+        knowledge = km.get_relevant_knowledge(
+            query,
+            max_insights=data.get("max_insights", 10),
+            max_arguments=data.get("max_arguments", 5)
+        )
+        return jsonify(knowledge)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/knowledge/beliefs", methods=["POST"])
+def add_core_belief():
+    """Add a core belief to shape bot personality."""
+    data = request.json
+    belief = data.get("belief", "")
+    source = data.get("source", "user")
+    weight = data.get("weight", 5)
+    
+    if not belief:
+        return jsonify({"error": "No belief provided"}), 400
+    
+    try:
+        km = get_knowledge_memory()
+        km.add_core_belief(belief, source, weight)
+        return jsonify({"success": True, "message": "Core belief added"})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/knowledge/arguments", methods=["GET"])
+def compare_arguments():
+    """Compare arguments learned about a topic."""
+    topic = request.args.get("topic", "")
+    
+    if not topic:
+        return jsonify({"error": "No topic provided"}), 400
+    
+    try:
+        km = get_knowledge_memory()
+        arguments = km.compare_arguments(topic)
+        return jsonify({"topic": topic, "arguments": arguments})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/knowledge/export", methods=["GET"])
+def export_knowledge():
+    """Export all knowledge memory for backup."""
+    try:
+        km = get_knowledge_memory()
+        data = km.export_knowledge()
+        return jsonify(data)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/knowledge/import", methods=["POST"])
+def import_knowledge():
+    """Import knowledge from backup."""
+    data = request.json
+    
+    if not data:
+        return jsonify({"error": "No data provided"}), 400
+    
+    try:
+        km = get_knowledge_memory()
+        km.import_knowledge(data)
+        return jsonify({"success": True, "message": "Knowledge imported"})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/knowledge", methods=["DELETE"])
+def clear_knowledge():
+    """Clear all knowledge memory."""
+    try:
+        km = get_knowledge_memory()
+        km.clear()
+        return jsonify({"success": True, "message": "Knowledge memory cleared"})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 
 # ============================================================
@@ -697,6 +866,15 @@ if __name__ == "__main__":
     print(f"   URL:         http://{CONFIG['host']}:{CONFIG['port']}")
     print(f"   Dashboard:   http://{CONFIG['host']}:{CONFIG['port']}/dashboard")
     print(f"   Documents:   {len(get_documents_index())}")
+    
+    # Knowledge memory status
+    try:
+        km = get_knowledge_memory()
+        km_stats = km.get_statistics()
+        print(f"   Knowledge:   {km_stats['total_pdfs_processed']} PDFs learned, {km_stats['total_insights']} insights, {km_stats['file_size_mb']:.2f} MB")
+    except Exception:
+        print(f"   Knowledge:   ✗ Not initialized")
+    
     twitter_configured = bool(CONFIG.get("twitter", {}).get("api_key"))
     print(f"   Twitter:     {'✓ Configured' if twitter_configured else '✗ Not configured'}")
     print()

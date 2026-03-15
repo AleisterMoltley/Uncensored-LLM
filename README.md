@@ -173,6 +173,18 @@ curl -X POST http://localhost:7777/api/unload
 | GET | /api/health | Status |
 | POST | /api/unload | Unload unused models |
 
+### Knowledge Memory API Endpoints
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | /api/knowledge | Get knowledge memory statistics |
+| POST | /api/knowledge/relevant | Get knowledge relevant to a query |
+| POST | /api/knowledge/beliefs | Add a core belief |
+| GET | /api/knowledge/arguments | Compare arguments about a topic |
+| GET | /api/knowledge/export | Export all knowledge for backup |
+| POST | /api/knowledge/import | Import knowledge from backup |
+| DELETE | /api/knowledge | Clear all knowledge memory |
+
 ### Twitter API Endpoints
 
 | Method | Path | Description |
@@ -187,6 +199,90 @@ curl -X POST http://localhost:7777/api/unload
 | DELETE | /api/twitter/history | Clear tweet history |
 | POST | /api/twitter/reply | Manually reply to a tweet |
 | GET | /api/twitter/search | Search tweets (without processing) |
+
+## Knowledge Memory (Personality Shaping)
+
+The bot learns from uploaded PDFs and stores compressed knowledge to shape its personality. The knowledge memory enables human-like, rational reasoning by:
+
+- **Extracting key insights** from every PDF uploaded
+- **Learning arguments** and logical reasoning patterns
+- **Forming core beliefs** that influence responses
+- **Comparing arguments** rationally when discussing topics
+
+### Features
+
+- **Automatic Learning**: Every uploaded PDF contributes to the bot's knowledge
+- **Compressed Storage**: Uses gzip compression to keep memory bounded
+- **Size Limits**: Maximum 10 MB memory (configurable), even after 100+ PDFs
+- **Smart Compression**: Automatically merges similar insights and prunes low-value content
+- **Topic Organization**: Knowledge is organized by detected topics
+- **Rational Reasoning**: Bot can compare different arguments it has learned
+
+### How It Works
+
+1. **PDF Upload** → Chunks are analyzed for insights and arguments
+2. **Knowledge Extraction** → Key statements, facts, and logical arguments are identified
+3. **Compression** → Similar insights are merged, low-value content is pruned
+4. **Storage** → Knowledge is saved in a compressed JSON file (`memory/knowledge_memory.json.gz`)
+5. **Chat Integration** → Relevant knowledge is injected into prompts to shape responses
+
+### Configuration (config.json)
+
+```json
+{
+    "max_knowledge_memory_mb": 10,     // Maximum memory file size in MB
+    "max_insights_per_topic": 50,      // Max insights per topic before compression
+    "summary_threshold": 20            // Number of insights before auto-summarizing
+}
+```
+
+### API Examples
+
+```bash
+# Get knowledge memory statistics
+curl http://localhost:7777/api/knowledge
+
+# Get knowledge relevant to a query
+curl -X POST http://localhost:7777/api/knowledge/relevant \
+  -H "Content-Type: application/json" \
+  -d '{"query": "artificial intelligence"}'
+
+# Add a core belief to shape personality
+curl -X POST http://localhost:7777/api/knowledge/beliefs \
+  -H "Content-Type: application/json" \
+  -d '{"belief": "Logic and evidence should guide all conclusions", "weight": 10}'
+
+# Compare arguments about a topic
+curl "http://localhost:7777/api/knowledge/arguments?topic=philosophy"
+
+# Export all knowledge for backup
+curl http://localhost:7777/api/knowledge/export > knowledge_backup.json
+
+# Import knowledge from backup
+curl -X POST http://localhost:7777/api/knowledge/import \
+  -H "Content-Type: application/json" \
+  -d @knowledge_backup.json
+
+# Clear all knowledge memory
+curl -X DELETE http://localhost:7777/api/knowledge
+```
+
+### Memory Size Management
+
+The knowledge memory is designed to stay small even with many PDFs:
+
+| PDFs Processed | Typical Memory Size |
+|----------------|---------------------|
+| 10 | ~0.1 MB |
+| 50 | ~0.5 MB |
+| 100 | ~1-2 MB |
+| 500 | ~5-8 MB |
+
+The system automatically compresses when memory exceeds the configured limit by:
+1. Merging similar insights (60% word overlap → merge)
+2. Keeping only highest-weighted insights per topic
+3. Pruning low-strength arguments
+4. Consolidating core beliefs
 
 ## Twitter Integration
 
