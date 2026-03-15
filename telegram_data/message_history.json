@@ -1,0 +1,14 @@
+[
+  {
+    "message_id": 1,
+    "chat_id": 67890,
+    "user_id": 12345,
+    "username": "testuser",
+    "first_name": "Alice",
+    "text": "@test_bot Hello!",
+    "chat_type": "group",
+    "processed_at": "2026-03-15T23:38:08.790630+00:00",
+    "should_respond": false,
+    "replied": false
+  }
+]
