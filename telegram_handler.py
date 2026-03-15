@@ -458,7 +458,6 @@ class TelegramHandler:
         except Exception as e:
             print(f"⚠️ LLM response error: {e}")
             return ""
-            return ""
     
     def process_message(self, message_data: Dict) -> Dict:
         """
