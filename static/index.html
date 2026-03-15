@@ -616,9 +616,228 @@
             margin: 1.5rem 0;
         }
 
+        /* Personality Selector Styles */
+        .personality-selector {
+            background: linear-gradient(145deg, var(--marble-white) 0%, var(--marble-light) 50%, var(--marble-white) 100%);
+            border: 3px solid var(--gold);
+            margin: 0 2rem 1.5rem 2rem;
+            border-radius: 8px;
+            box-shadow: 0 8px 32px var(--shadow);
+            overflow: hidden;
+        }
+
+        .personality-header {
+            background: linear-gradient(180deg, var(--marble-light) 0%, var(--marble-veins) 100%);
+            padding: 1rem 1.5rem;
+            border-bottom: 2px solid var(--gold);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: pointer;
+            transition: background 0.3s ease;
+        }
+
+        .personality-header:hover {
+            background: linear-gradient(180deg, var(--marble-veins) 0%, var(--marble-light) 100%);
+        }
+
+        .personality-title {
+            font-family: 'Cinzel', serif;
+            font-size: 1.2rem;
+            font-weight: 600;
+            color: var(--text-dark);
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .personality-active-badge {
+            background: linear-gradient(180deg, var(--gold-light), var(--gold));
+            color: var(--text-dark);
+            padding: 0.3rem 0.8rem;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            font-weight: 500;
+            font-family: 'Cormorant Garamond', serif;
+        }
+
+        .personality-toggle {
+            color: var(--gold-dark);
+            font-size: 1rem;
+            transition: transform 0.3s ease;
+        }
+
+        .personality-selector.expanded .personality-toggle {
+            transform: rotate(180deg);
+        }
+
+        .personality-body {
+            padding: 1.5rem;
+        }
+
+        .personality-description {
+            color: var(--text-light);
+            margin-bottom: 1rem;
+            font-size: 0.95rem;
+        }
+
+        .personality-cards {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 1.5rem;
+        }
+
+        .personality-card {
+            background: var(--marble-veins);
+            border: 2px solid var(--gold);
+            border-radius: 8px;
+            overflow: hidden;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .personality-card:hover {
+            box-shadow: 0 8px 24px var(--shadow);
+            transform: translateY(-2px);
+        }
+
+        .personality-card.active {
+            border-color: var(--gold-dark);
+            box-shadow: 0 0 0 3px rgba(201, 162, 39, 0.3);
+        }
+
+        .personality-card-header {
+            background: linear-gradient(180deg, var(--marble-white), var(--marble-light));
+            padding: 1rem;
+            border-bottom: 1px solid var(--gold);
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .personality-icon {
+            font-size: 1.5rem;
+        }
+
+        .personality-name {
+            font-family: 'Cinzel', serif;
+            font-weight: 600;
+            font-size: 1rem;
+            flex: 1;
+        }
+
+        .personality-status {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: var(--gold);
+            display: none;
+        }
+
+        .personality-card.active .personality-status {
+            display: block;
+            animation: pulse 2s infinite;
+        }
+
+        .personality-card-body {
+            padding: 1rem;
+        }
+
+        .personality-card-body p {
+            color: var(--text-light);
+            font-size: 0.9rem;
+            line-height: 1.5;
+            margin-bottom: 0.75rem;
+        }
+
+        .personality-features {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+        }
+
+        .feature {
+            font-size: 0.75rem;
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
+            background: rgba(0, 0, 0, 0.05);
+            color: var(--text-light);
+        }
+
+        .feature.active {
+            background: rgba(76, 175, 80, 0.15);
+            color: #2e7d32;
+        }
+
+        /* Modal Styles */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.6);
+            z-index: 2000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal-content {
+            background: var(--marble-white);
+            border: 3px solid var(--gold);
+            border-radius: 8px;
+            width: 90%;
+            max-width: 600px;
+            max-height: 90vh;
+            overflow-y: auto;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+        }
+
+        .modal-header {
+            background: linear-gradient(180deg, var(--marble-light), var(--marble-veins));
+            padding: 1rem 1.5rem;
+            border-bottom: 2px solid var(--gold);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .modal-header h3 {
+            font-family: 'Cinzel', serif;
+            font-size: 1.2rem;
+            color: var(--text-dark);
+            margin: 0;
+        }
+
+        .modal-close {
+            background: none;
+            border: none;
+            font-size: 1.5rem;
+            color: var(--text-light);
+            cursor: pointer;
+            transition: color 0.3s ease;
+        }
+
+        .modal-close:hover {
+            color: #8b3a3a;
+        }
+
+        .modal-body {
+            padding: 1.5rem;
+        }
+
         /* Responsive */
         @media (max-width: 1024px) {
             .container {
+                grid-template-columns: 1fr;
+            }
+            
+            .personality-selector {
+                margin: 0 1rem 1rem 1rem;
+            }
+            
+            .personality-cards {
                 grid-template-columns: 1fr;
             }
         }
@@ -631,6 +850,104 @@
             <p class="subtitle">Senatus Populusque Romanus • Uncensored • Local • Fast</p>
         </div>
     </header>
+
+    <!-- Collapsible Personality Selector -->
+    <div class="personality-selector" id="personality-selector">
+        <div class="personality-header" onclick="togglePersonalitySelector()">
+            <span class="personality-title">
+                <span>🎭</span> Persönlichkeitsauswahl
+                <span class="personality-active-badge" id="personality-badge">Ungefilterte PDF-Persönlichkeit</span>
+            </span>
+            <span class="personality-toggle" id="personality-toggle">▼</span>
+        </div>
+        <div class="personality-body" id="personality-body" style="display: none;">
+            <p class="personality-description">
+                Wähle die aktive Persönlichkeit für alle Kanäle (Dashboard-Chat, Twitter, Telegram):
+            </p>
+            
+            <div class="personality-cards">
+                <!-- Uncensored PDF Personality -->
+                <div class="personality-card" id="card-uncensored_pdf" onclick="selectPersonality('uncensored_pdf')">
+                    <div class="personality-card-header">
+                        <span class="personality-icon">🔓</span>
+                        <span class="personality-name">Ungefilterte PDF-Persönlichkeit</span>
+                        <span class="personality-status" id="status-uncensored_pdf"></span>
+                    </div>
+                    <div class="personality-card-body">
+                        <p>Absolut freie, ungefilterte Persönlichkeit, die ihren Charakter aus den hochgeladenen PDFs formt. Keine Zensur, keine Einschränkungen.</p>
+                        <div class="personality-features">
+                            <span class="feature active">✓ PDF-Wissen</span>
+                            <span class="feature active">✓ Uncensored Boost</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Custom Personality -->
+                <div class="personality-card" id="card-custom" onclick="selectPersonality('custom')">
+                    <div class="personality-card-header">
+                        <span class="personality-icon">⚙️</span>
+                        <span class="personality-name">Benutzerdefinierte Persönlichkeit</span>
+                        <span class="personality-status" id="status-custom"></span>
+                    </div>
+                    <div class="personality-card-body">
+                        <p>Eine von dir definierte Persönlichkeit, die genau so agiert, wie du es möchtest.</p>
+                        <div class="personality-features">
+                            <span class="feature">✗ PDF-Wissen</span>
+                            <span class="feature">✗ Uncensored Boost</span>
+                        </div>
+                        <button class="btn btn-sm btn-secondary" style="margin-top: 0.5rem;" onclick="event.stopPropagation(); openCustomPersonalityEditor()">
+                            ✏️ Anpassen
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Custom Personality Editor Modal -->
+    <div class="modal-overlay" id="personality-modal" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>⚙️ Benutzerdefinierte Persönlichkeit bearbeiten</h3>
+                <button class="modal-close" onclick="closePersonalityModal()">×</button>
+            </div>
+            <div class="modal-body">
+                <form id="custom-personality-form">
+                    <div class="form-group">
+                        <label>Name der Persönlichkeit</label>
+                        <input type="text" id="custom-name" placeholder="z.B. Freundlicher Helfer">
+                    </div>
+                    <div class="form-group">
+                        <label>Beschreibung</label>
+                        <input type="text" id="custom-description" placeholder="Kurze Beschreibung der Persönlichkeit">
+                    </div>
+                    <div class="form-group">
+                        <label>System-Prompt (definiert das Verhalten)</label>
+                        <textarea id="custom-system-prompt" rows="6" placeholder="Du bist ein hilfreicher Assistent..."></textarea>
+                    </div>
+                    <div class="config-grid">
+                        <div class="form-group">
+                            <label>PDF-Wissen nutzen</label>
+                            <select id="custom-use-knowledge">
+                                <option value="false">Deaktiviert</option>
+                                <option value="true">Aktiviert</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Uncensored Boost</label>
+                            <select id="custom-use-uncensored">
+                                <option value="false">Deaktiviert</option>
+                                <option value="true">Aktiviert</option>
+                            </select>
+                        </div>
+                    </div>
+                    <button type="submit" class="btn btn-primary" style="width: 100%;">
+                        💾 Persönlichkeit Speichern
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
 
     <div class="container">
         <!-- Twitter Control Panel -->
@@ -965,6 +1282,174 @@
         // ============================================================
         let currentConvId = null;
         let isStreaming = false;
+        let activePersonalityId = 'uncensored_pdf';
+
+        // ============================================================
+        // Personality Selector Functions
+        // ============================================================
+        function togglePersonalitySelector() {
+            const selector = document.getElementById('personality-selector');
+            const body = document.getElementById('personality-body');
+            
+            if (body.style.display === 'none') {
+                body.style.display = 'block';
+                selector.classList.add('expanded');
+            } else {
+                body.style.display = 'none';
+                selector.classList.remove('expanded');
+            }
+        }
+
+        async function loadPersonalities() {
+            try {
+                const response = await fetch('/api/personality');
+                const data = await response.json();
+                
+                activePersonalityId = data.active_personality;
+                
+                // Update badge
+                const activePersonality = data.personalities.find(p => p.active);
+                if (activePersonality) {
+                    document.getElementById('personality-badge').textContent = activePersonality.name;
+                }
+                
+                // Update cards
+                data.personalities.forEach(p => {
+                    const card = document.getElementById(`card-${p.id}`);
+                    if (card) {
+                        if (p.active) {
+                            card.classList.add('active');
+                        } else {
+                            card.classList.remove('active');
+                        }
+                    }
+                });
+                
+                addTerminalLine(`Persönlichkeit geladen: ${activePersonality?.name || activePersonalityId}`, 'response');
+                
+            } catch (error) {
+                console.error('Error loading personalities:', error);
+            }
+        }
+
+        async function selectPersonality(personalityId) {
+            try {
+                addTerminalLine(`Wechsle Persönlichkeit zu: ${personalityId}...`, 'action');
+                addThought('Persönlichkeit', `Wechsle zu ${personalityId}...`);
+                
+                const response = await fetch('/api/personality/active', {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ personality_id: personalityId })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    activePersonalityId = personalityId;
+                    
+                    // Update UI
+                    document.querySelectorAll('.personality-card').forEach(card => {
+                        card.classList.remove('active');
+                    });
+                    document.getElementById(`card-${personalityId}`).classList.add('active');
+                    
+                    // Update badge
+                    const cardName = document.querySelector(`#card-${personalityId} .personality-name`)?.textContent;
+                    document.getElementById('personality-badge').textContent = cardName || personalityId;
+                    
+                    addTerminalLine(result.message, 'response');
+                    addThought('Persönlichkeit', result.message);
+                    
+                } else {
+                    addTerminalLine(`Fehler: ${result.error}`, 'error');
+                }
+            } catch (error) {
+                addTerminalLine(`Fehler: ${error.message}`, 'error');
+            }
+        }
+
+        function openCustomPersonalityEditor() {
+            loadCustomPersonalityData();
+            document.getElementById('personality-modal').style.display = 'flex';
+        }
+
+        function closePersonalityModal() {
+            document.getElementById('personality-modal').style.display = 'none';
+        }
+
+        async function loadCustomPersonalityData() {
+            try {
+                const response = await fetch('/api/personality/custom');
+                const data = await response.json();
+                
+                document.getElementById('custom-name').value = data.name || '';
+                document.getElementById('custom-description').value = data.description || '';
+                document.getElementById('custom-system-prompt').value = data.system_prompt || '';
+                document.getElementById('custom-use-knowledge').value = data.use_knowledge_memory ? 'true' : 'false';
+                document.getElementById('custom-use-uncensored').value = data.use_uncensored_boost ? 'true' : 'false';
+                
+            } catch (error) {
+                console.error('Error loading custom personality:', error);
+            }
+        }
+
+        document.getElementById('custom-personality-form')?.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const config = {
+                name: document.getElementById('custom-name').value,
+                description: document.getElementById('custom-description').value,
+                system_prompt: document.getElementById('custom-system-prompt').value,
+                use_knowledge_memory: document.getElementById('custom-use-knowledge').value === 'true',
+                use_uncensored_boost: document.getElementById('custom-use-uncensored').value === 'true'
+            };
+            
+            try {
+                addTerminalLine('Speichere benutzerdefinierte Persönlichkeit...', 'action');
+                
+                const response = await fetch('/api/personality/custom', {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(config)
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    addTerminalLine('Persönlichkeit gespeichert', 'response');
+                    addThought('Konfiguration', 'Benutzerdefinierte Persönlichkeit wurde aktualisiert');
+                    
+                    // Update card name if changed
+                    const cardName = document.querySelector('#card-custom .personality-name');
+                    if (cardName && config.name) {
+                        cardName.textContent = config.name;
+                    }
+                    
+                    // Update card description
+                    const cardBody = document.querySelector('#card-custom .personality-card-body p');
+                    if (cardBody && config.description) {
+                        cardBody.textContent = config.description;
+                    }
+                    
+                    // Update features display
+                    const features = document.querySelector('#card-custom .personality-features');
+                    if (features) {
+                        features.innerHTML = `
+                            <span class="feature ${config.use_knowledge_memory ? 'active' : ''}">${config.use_knowledge_memory ? '✓' : '✗'} PDF-Wissen</span>
+                            <span class="feature ${config.use_uncensored_boost ? 'active' : ''}">${config.use_uncensored_boost ? '✓' : '✗'} Uncensored Boost</span>
+                        `;
+                    }
+                    
+                    closePersonalityModal();
+                    loadPersonalities();
+                } else {
+                    addTerminalLine(`Fehler: ${result.error}`, 'error');
+                }
+            } catch (error) {
+                addTerminalLine(`Fehler: ${error.message}`, 'error');
+            }
+        });
 
         // ============================================================
         // Terminal Functions
@@ -1769,6 +2254,7 @@
         // ============================================================
         document.addEventListener('DOMContentLoaded', () => {
             checkHealth();
+            loadPersonalities();
             twitterRefreshStatus();
             loadTwitterConfig();
             loadTwitterHistory();
