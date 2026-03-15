@@ -321,16 +321,18 @@ class TestTelegramHandler(unittest.TestCase):
         # Initialize user memory
         self.handler.user_memory.get_user_memory(12345, 67890)
         
-        # Test fact extraction with various patterns
+        # Test fact extraction with a pattern we know matches
         self.handler._extract_and_store_facts(
             12345, 67890,
-            "I work as a software developer",
+            "I work at Google",
             "That's great!"
         )
         
         user_mem = self.handler.user_memory.get_user_memory(12345, 67890)
-        # Should have extracted something about work
-        self.assertTrue(len(user_mem.get("facts", [])) > 0 or True)  # Pattern may not match all cases
+        # Should have extracted at least one fact
+        self.assertGreater(len(user_mem.get("facts", [])), 0)
+        # At least one fact should contain Google
+        self.assertTrue(any("Google" in fact for fact in user_mem["facts"]))
     
     def test_get_history(self):
         """Test getting message history."""
