@@ -278,20 +278,25 @@ class TelegramHandler:
     """
     Handles Telegram integration for the LocalLLM system.
     - Listens for messages where the bot is mentioned
-    - Responds using the LLM
+    - Responds automatically using the LLM (no approval needed)
     - Maintains persistent user memory
+    - Uses active personality from dashboard
     """
     
-    def __init__(self, config: Dict, llm_callback: Callable[[str], str]):
+    def __init__(self, config: Dict, llm_callback: Callable[[str], str],
+                 personality_prompt_builder: Optional[Callable[[str], str]] = None):
         """
         Initialize the Telegram handler.
         
         Args:
-            config: Telegram configuration from config.json
+            config: Full configuration from config.json
             llm_callback: Function to generate LLM responses
+            personality_prompt_builder: Optional function to build prompts using active personality
         """
+        self.full_config = config
         self.config = config.get("telegram", {})
         self.llm_callback = llm_callback
+        self.personality_prompt_builder = personality_prompt_builder
         self.bot = None
         self.bot_info = None
         self.user_memory = UserMemory()
@@ -395,6 +400,7 @@ class TelegramHandler:
                           last_name: Optional[str] = None) -> str:
         """
         Generate a response to a Telegram message using the LLM.
+        Responds automatically without requiring user approval.
         
         Args:
             message: The user's message
@@ -417,33 +423,37 @@ class TelegramHandler:
         
         task = self.config.get("task", "respond helpfully and engagingly")
         
-        # Build prompt with user memory
-        prompt_parts = [
-            f"You are a Telegram bot assistant. Your task is: {task}",
+        # Build the user query for Telegram
+        display_name = first_name or username or "User"
+        user_query_parts = [
+            f"Du bist ein Telegram Bot Assistent. Deine Aufgabe ist: {task}",
             "",
-            "IMPORTANT: You have memory of past interactions with this user. "
-            "Use this memory to provide personalized, contextual responses. "
-            "Reference past conversations when relevant.",
+            "WICHTIG: Du hast ein Gedächtnis über vergangene Interaktionen mit diesem Nutzer. "
+            "Nutze dieses Gedächtnis, um personalisierte, kontextuelle Antworten zu geben. "
+            "Beziehe dich auf vergangene Gespräche, wenn relevant.",
             ""
         ]
         
         if memory_context:
-            prompt_parts.append(memory_context)
-            prompt_parts.append("")
+            user_query_parts.append(memory_context)
+            user_query_parts.append("")
         
-        # Add display name for natural reference
-        display_name = first_name or username or "User"
-        prompt_parts.append(f"Current message from {display_name}:")
-        prompt_parts.append(f'"{message}"')
-        prompt_parts.append("")
-        prompt_parts.append("Generate a helpful, engaging response. "
-                           "If the user mentions something personal, "
-                           "acknowledge it and remember it for future conversations.")
+        user_query_parts.append(f"Aktuelle Nachricht von {display_name}:")
+        user_query_parts.append(f'"{message}"')
+        user_query_parts.append("")
+        user_query_parts.append("Generiere eine hilfreiche, engagierte Antwort. "
+                               "Wenn der Nutzer etwas Persönliches erwähnt, "
+                               "merke es dir für zukünftige Gespräche.")
         
-        prompt = "\n".join(prompt_parts)
+        user_query = "\n".join(user_query_parts)
         
         try:
-            response = self.llm_callback(prompt)
+            # Use personality-based prompt if available
+            if self.personality_prompt_builder:
+                prompt = self.personality_prompt_builder(user_query)
+                response = self.llm_callback(prompt)
+            else:
+                response = self.llm_callback(user_query)
             return response.strip()
         except Exception as e:
             print(f"⚠️ LLM response error: {e}")

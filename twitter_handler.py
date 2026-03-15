@@ -22,19 +22,23 @@ class TwitterHandler:
     - Scans Twitter for tweets matching assigned tasks
     - Filters tweets not older than 3 hours
     - Generates responses using the LLM
-    - Posts replies to tweets
+    - Posts replies to tweets (automatically, no approval needed)
     """
     
-    def __init__(self, config: Dict, llm_callback: Callable[[str], str]):
+    def __init__(self, config: Dict, llm_callback: Callable[[str], str],
+                 personality_prompt_builder: Optional[Callable[[str], str]] = None):
         """
         Initialize the Twitter handler.
         
         Args:
-            config: Twitter configuration from config.json
+            config: Full configuration from config.json
             llm_callback: Function to generate LLM responses
+            personality_prompt_builder: Optional function to build prompts using active personality
         """
+        self.full_config = config
         self.config = config.get("twitter", {})
         self.llm_callback = llm_callback
+        self.personality_prompt_builder = personality_prompt_builder
         self.api = None
         self.client = None
         self._scanner_thread: Optional[threading.Thread] = None
@@ -217,7 +221,8 @@ class TwitterHandler:
     
     def generate_response(self, tweet: Dict) -> str:
         """
-        Generate a response to a tweet using the LLM.
+        Generate a response to a tweet using the LLM with active personality.
+        Runs autonomously without requiring user approval.
         
         Args:
             tweet: Tweet dictionary
@@ -227,16 +232,23 @@ class TwitterHandler:
         """
         task = self.config.get("task", "respond helpfully and professionally")
         
-        prompt = f"""You are responding to a tweet on Twitter. Your task is: {task}
+        # Build the user query for the tweet
+        user_query = f"""Du antwortest auf einen Tweet auf Twitter. Deine Aufgabe ist: {task}
 
-Tweet from @{tweet.get('author_username', 'user')}:
+Tweet von @{tweet.get('author_username', 'user')}:
 "{tweet.get('text', '')}"
 
-Generate a concise, appropriate response (max 280 characters). Be helpful, professional, and engaging.
-Only output the response text, nothing else."""
+Generiere eine kurze, passende Antwort (max 280 Zeichen). Sei hilfreich und engagiert.
+Gib nur den Antworttext aus, nichts anderes."""
 
         try:
-            response = self.llm_callback(prompt)
+            # Use personality-based prompt if available
+            if self.personality_prompt_builder:
+                prompt = self.personality_prompt_builder(user_query)
+                response = self.llm_callback(prompt)
+            else:
+                response = self.llm_callback(user_query)
+            
             # Truncate to Twitter's character limit
             if len(response) > 280:
                 response = response[:277] + "..."
