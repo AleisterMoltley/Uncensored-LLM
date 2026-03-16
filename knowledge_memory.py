@@ -2,15 +2,277 @@
 Knowledge Memory System for LLM Servant
 Stores learned knowledge from PDFs to shape bot personality.
 Uses compression to keep memory size bounded even after many PDFs.
+Supports Redis-based embedding caching for improved performance.
 """
 
 import hashlib
+import json
+import logging
+import os
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Optional, Any, TypedDict
+from typing import Dict, List, Optional, Any, TypedDict, Union
 
 from pydantic import BaseModel, Field, field_validator, ConfigDict
 from utils import PersistentStorage
+
+
+# Setup logging
+logger = logging.getLogger('llm_servant')
+
+
+# ============================================================
+# Redis Embedding Cache
+# ============================================================
+
+
+class RedisConfig(TypedDict, total=False):
+    """Configuration for Redis connection."""
+    enabled: bool
+    url: str
+    embedding_cache_ttl: int
+
+
+class EmbeddingCache:
+    """
+    Redis-based cache for text embeddings.
+    
+    Caches embeddings to avoid redundant computation when processing
+    similar or duplicate text chunks. Uses text hash as cache key.
+    
+    Features:
+    - Configurable TTL for cache entries
+    - Graceful fallback when Redis unavailable
+    - JSON serialization for embedding vectors
+    """
+    
+    DEFAULT_TTL = 86400  # 24 hours
+    CACHE_PREFIX = "embedding:"
+    
+    def __init__(
+        self,
+        redis_config: Optional[RedisConfig] = None
+    ):
+        """
+        Initialize embedding cache.
+        
+        Args:
+            redis_config: Redis configuration dictionary with url, enabled, and ttl settings
+        """
+        self._redis_client: Optional[Any] = None
+        self._redis_available = False
+        
+        config = redis_config or {}
+        self.enabled = config.get("enabled", False)
+        self.redis_url = config.get("url", "redis://localhost:6379/0")
+        self.ttl = config.get("embedding_cache_ttl", self.DEFAULT_TTL)
+        
+        # Try to connect to Redis if enabled
+        if self.enabled:
+            self._connect_redis()
+    
+    def _connect_redis(self) -> bool:
+        """
+        Attempt to connect to Redis server.
+        
+        Returns:
+            True if connection successful, False otherwise
+        """
+        try:
+            import redis
+            self._redis_client = redis.from_url(
+                self.redis_url,
+                decode_responses=True,
+                socket_timeout=5,
+                socket_connect_timeout=5
+            )
+            # Test connection
+            self._redis_client.ping()
+            self._redis_available = True
+            logger.info("Redis embedding cache connected successfully")
+            return True
+        except ImportError:
+            logger.warning("Redis package not installed. Embedding cache disabled.")
+            self._redis_available = False
+            return False
+        except Exception as e:
+            logger.warning(f"Redis connection failed: {e}. Embedding cache disabled.")
+            self._redis_available = False
+            return False
+    
+    def _text_to_cache_key(self, text: str) -> str:
+        """
+        Generate cache key from text using hash.
+        
+        Args:
+            text: Text to generate key for
+            
+        Returns:
+            Cache key string
+        """
+        text_hash = hashlib.sha256(text.encode('utf-8')).hexdigest()[:32]
+        return f"{self.CACHE_PREFIX}{text_hash}"
+    
+    def get(self, text: str) -> Optional[List[float]]:
+        """
+        Get cached embedding for text.
+        
+        Args:
+            text: Text to lookup embedding for
+            
+        Returns:
+            Cached embedding vector or None if not found
+        """
+        if not self._redis_available or not self.enabled:
+            return None
+        
+        try:
+            cache_key = self._text_to_cache_key(text)
+            cached = self._redis_client.get(cache_key)
+            if cached:
+                return json.loads(cached)
+            return None
+        except Exception as e:
+            logger.debug(f"Cache get error: {e}")
+            return None
+    
+    def set(self, text: str, embedding: List[float]) -> bool:
+        """
+        Cache embedding for text.
+        
+        Args:
+            text: Text the embedding is for
+            embedding: Embedding vector to cache
+            
+        Returns:
+            True if caching successful, False otherwise
+        """
+        if not self._redis_available or not self.enabled:
+            return False
+        
+        try:
+            cache_key = self._text_to_cache_key(text)
+            self._redis_client.setex(
+                cache_key,
+                self.ttl,
+                json.dumps(embedding)
+            )
+            return True
+        except Exception as e:
+            logger.debug(f"Cache set error: {e}")
+            return False
+    
+    def get_batch(self, texts: List[str]) -> Dict[str, Optional[List[float]]]:
+        """
+        Get cached embeddings for multiple texts.
+        
+        Args:
+            texts: List of texts to lookup
+            
+        Returns:
+            Dictionary mapping text to embedding (or None if not cached)
+        """
+        if not self._redis_available or not self.enabled:
+            return {text: None for text in texts}
+        
+        try:
+            keys = [self._text_to_cache_key(text) for text in texts]
+            values = self._redis_client.mget(keys)
+            
+            results: Dict[str, Optional[List[float]]] = {}
+            for text, value in zip(texts, values):
+                if value:
+                    results[text] = json.loads(value)
+                else:
+                    results[text] = None
+            return results
+        except Exception as e:
+            logger.debug(f"Cache batch get error: {e}")
+            return {text: None for text in texts}
+    
+    def set_batch(self, embeddings: Dict[str, List[float]]) -> int:
+        """
+        Cache multiple embeddings.
+        
+        Args:
+            embeddings: Dictionary mapping text to embedding vector
+            
+        Returns:
+            Number of embeddings successfully cached
+        """
+        if not self._redis_available or not self.enabled:
+            return 0
+        
+        try:
+            pipeline = self._redis_client.pipeline()
+            for text, embedding in embeddings.items():
+                cache_key = self._text_to_cache_key(text)
+                pipeline.setex(cache_key, self.ttl, json.dumps(embedding))
+            pipeline.execute()
+            return len(embeddings)
+        except Exception as e:
+            logger.debug(f"Cache batch set error: {e}")
+            return 0
+    
+    def clear(self) -> int:
+        """
+        Clear all cached embeddings.
+        
+        Returns:
+            Number of entries deleted
+        """
+        if not self._redis_available or not self.enabled:
+            return 0
+        
+        try:
+            pattern = f"{self.CACHE_PREFIX}*"
+            cursor = 0
+            deleted = 0
+            while True:
+                cursor, keys = self._redis_client.scan(cursor, match=pattern, count=100)
+                if keys:
+                    deleted += self._redis_client.delete(*keys)
+                if cursor == 0:
+                    break
+            return deleted
+        except Exception as e:
+            logger.debug(f"Cache clear error: {e}")
+            return 0
+    
+    def get_stats(self) -> Dict[str, Any]:
+        """
+        Get cache statistics.
+        
+        Returns:
+            Dictionary with cache statistics
+        """
+        stats = {
+            "enabled": self.enabled,
+            "available": self._redis_available,
+            "redis_url": self.redis_url.replace(":6379", ":****"),  # Mask port
+            "ttl_seconds": self.ttl,
+            "cached_embeddings": 0
+        }
+        
+        if self._redis_available and self.enabled:
+            try:
+                pattern = f"{self.CACHE_PREFIX}*"
+                cursor = 0
+                count = 0
+                while True:
+                    cursor, keys = self._redis_client.scan(cursor, match=pattern, count=100)
+                    count += len(keys)
+                    if cursor == 0:
+                        break
+                stats["cached_embeddings"] = count
+            except Exception as e:
+                logger.debug(f"Cache stats error: {e}")
+        
+        return stats
+    
+    def is_available(self) -> bool:
+        """Check if cache is available and enabled."""
+        return self.enabled and self._redis_available
 
 
 # ============================================================
@@ -23,6 +285,9 @@ class KnowledgeMemoryConfig(TypedDict, total=False):
     max_knowledge_memory_mb: float
     max_insights_per_topic: int
     summary_threshold: int
+    chunk_size: int
+    chunk_overlap: int
+    redis: RedisConfig
 
 
 class ExtractionResult(TypedDict):
@@ -61,6 +326,9 @@ class StatisticsResult(TypedDict):
     compressions_performed: int
     file_size_bytes: int
     file_size_mb: float
+    chunk_size: int
+    chunk_overlap: int
+    embedding_cache: Dict[str, Any]
 
 
 class ExportResult(TypedDict):
@@ -215,7 +483,12 @@ class KnowledgeMemory:
     - Compresses and summarizes to prevent unbounded growth
     - Enables rational argument comparison
     - Shapes bot personality based on learned knowledge
+    - Supports Redis-based embedding caching for performance
     """
+    
+    # Default chunk settings
+    DEFAULT_CHUNK_SIZE = 600
+    DEFAULT_CHUNK_OVERLAP = 100
     
     def __init__(
         self,
@@ -237,7 +510,15 @@ class KnowledgeMemory:
         self.max_insights_per_topic = self.config.get("max_insights_per_topic", DEFAULT_MAX_INSIGHTS_PER_TOPIC)
         self.summary_threshold = self.config.get("summary_threshold", DEFAULT_SUMMARY_THRESHOLD)
         
+        # Chunk configuration
+        self.chunk_size = self.config.get("chunk_size", self.DEFAULT_CHUNK_SIZE)
+        self.chunk_overlap = self.config.get("chunk_overlap", self.DEFAULT_CHUNK_OVERLAP)
+        
         self.memory_file = self.memory_dir / "knowledge_memory.json.gz"
+        
+        # Initialize embedding cache
+        redis_config = self.config.get("redis")
+        self._embedding_cache = EmbeddingCache(redis_config)
         
         # Create default memory model for initialization
         self._default_memory_model = MemoryModel()
@@ -300,6 +581,84 @@ class KnowledgeMemory:
         except Exception:
             return False
     
+    def get_embedding_cache(self) -> EmbeddingCache:
+        """
+        Get the embedding cache instance.
+        
+        Returns:
+            EmbeddingCache instance
+        """
+        return self._embedding_cache
+    
+    def get_cached_embedding(self, text: str) -> Optional[List[float]]:
+        """
+        Get cached embedding for text.
+        
+        Args:
+            text: Text to get embedding for
+            
+        Returns:
+            Cached embedding or None if not cached
+        """
+        return self._embedding_cache.get(text)
+    
+    def cache_embedding(self, text: str, embedding: List[float]) -> bool:
+        """
+        Cache embedding for text.
+        
+        Args:
+            text: Text the embedding is for
+            embedding: Embedding vector to cache
+            
+        Returns:
+            True if cached successfully
+        """
+        return self._embedding_cache.set(text, embedding)
+    
+    def get_cached_embeddings_batch(
+        self, texts: List[str]
+    ) -> Dict[str, Optional[List[float]]]:
+        """
+        Get cached embeddings for multiple texts.
+        
+        Args:
+            texts: List of texts to get embeddings for
+            
+        Returns:
+            Dictionary mapping text to embedding (None if not cached)
+        """
+        return self._embedding_cache.get_batch(texts)
+    
+    def cache_embeddings_batch(self, embeddings: Dict[str, List[float]]) -> int:
+        """
+        Cache multiple embeddings.
+        
+        Args:
+            embeddings: Dictionary mapping text to embedding
+            
+        Returns:
+            Number of embeddings cached
+        """
+        return self._embedding_cache.set_batch(embeddings)
+    
+    def get_embedding_cache_stats(self) -> Dict[str, Any]:
+        """
+        Get embedding cache statistics.
+        
+        Returns:
+            Dictionary with cache statistics
+        """
+        return self._embedding_cache.get_stats()
+    
+    def clear_embedding_cache(self) -> int:
+        """
+        Clear all cached embeddings.
+        
+        Returns:
+            Number of entries deleted
+        """
+        return self._embedding_cache.clear()
+
     def _compress_memory(self):
         """
         Compress memory by summarizing insights.
@@ -813,7 +1172,10 @@ class KnowledgeMemory:
             "topics": list(self.memory["topics"].keys()),
             "compressions_performed": self.memory["statistics"]["compressions_performed"],
             "file_size_bytes": file_size_bytes,
-            "file_size_mb": round(file_size_bytes / (1024 * 1024), 3)
+            "file_size_mb": round(file_size_bytes / (1024 * 1024), 3),
+            "chunk_size": self.chunk_size,
+            "chunk_overlap": self.chunk_overlap,
+            "embedding_cache": self.get_embedding_cache_stats()
         }
         return result
     
