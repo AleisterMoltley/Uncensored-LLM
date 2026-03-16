@@ -1,7 +1,7 @@
 # 🏛️ LLM Servant v2 — Uncensored · Local · Fast
 
 Your local AI assistant without filters and without internet. Runs completely on
-your Mac Mini with Apple Silicon or any Windows/Linux system.
+your Mac Mini with Apple Silicon or compatible Windows/Linux systems (see requirements below).
 
 ---
 
@@ -130,7 +130,7 @@ ollama pull dolphin-llama3:8b
 ollama pull nomic-embed-text
 
 # 4. Clone or download this repository
-# Replace <YOUR_USERNAME> with the actual repository location
+# Note: Change 'YourName' below to your actual Windows username
 cd C:\Users\YourName\Documents
 git clone https://github.com/AleisterMoltley/Uncensored-LLM.git
 cd Uncensored-LLM
@@ -436,8 +436,8 @@ Uncensored AI models like Dolphin are trained without the typical safety guardra
 
 #### For Personal Use
 
+Example safety configuration in `config.json`:
 ```json
-// config.json - Example safety configuration
 {
     "system_prompt": "You are helpful but will not provide instructions for illegal activities, violence, or harm to others.",
     "force_uncensored": true
@@ -1218,11 +1218,12 @@ print(client.get_me())
 **Twitter API has strict rate limits.**
 
 **Solutions:**
+
+Increase scan interval in `config.json` (change from default 5 to 15 minutes):
 ```json
-// Increase scan interval in config.json
 {
     "twitter": {
-        "scan_interval_minutes": 15  // Increase from 5
+        "scan_interval_minutes": 15
     }
 }
 ```
