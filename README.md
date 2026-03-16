@@ -130,8 +130,9 @@ ollama pull dolphin-llama3:8b
 ollama pull nomic-embed-text
 
 # 4. Clone or download this repository
+# Replace <YOUR_USERNAME> with the actual repository location
 cd C:\Users\YourName\Documents
-git clone https://github.com/yourusername/Uncensored-LLM.git
+git clone https://github.com/AleisterMoltley/Uncensored-LLM.git
 cd Uncensored-LLM
 
 # 5. Create Python virtual environment
@@ -186,7 +187,7 @@ ollama pull nomic-embed-text
 
 # 4. Clone this repository
 cd ~/
-git clone https://github.com/yourusername/Uncensored-LLM.git
+git clone https://github.com/AleisterMoltley/Uncensored-LLM.git
 cd Uncensored-LLM
 
 # 5. Install Python dependencies (Ubuntu/Debian)
@@ -225,7 +226,7 @@ Then reload: `source ~/.bashrc`
 sudo nano /etc/systemd/system/llm-servant.service
 ```
 
-Add:
+Add (replace `<your-username>` with your actual Linux username):
 ```ini
 [Unit]
 Description=LLM Servant AI Assistant
@@ -233,10 +234,10 @@ After=network.target ollama.service
 
 [Service]
 Type=simple
-User=your-username
-WorkingDirectory=/home/your-username/Uncensored-LLM
-Environment=PATH=/home/your-username/Uncensored-LLM/venv/bin
-ExecStart=/home/your-username/Uncensored-LLM/venv/bin/python server.py
+User=<your-username>
+WorkingDirectory=/home/<your-username>/Uncensored-LLM
+Environment=PATH=/home/<your-username>/Uncensored-LLM/venv/bin
+ExecStart=/home/<your-username>/Uncensored-LLM/venv/bin/python server.py
 Restart=always
 
 [Install]
@@ -961,10 +962,10 @@ ollama pull dolphin-phi
 ollama list | grep dolphin
 ```
 
-**Also check:** Make sure `config.json` model name matches exactly:
+**Also check:** Make sure `config.json` model name matches exactly what appears in `ollama list`:
 ```json
 {
-    "model": "dolphin-llama3:8b"  // Must match ollama list output
+    "model": "dolphin-llama3:8b"
 }
 ```
 
@@ -998,11 +999,10 @@ ollama list | grep dolphin
    - In dashboard, enable "Live Streaming" option
    - This shows responses as they generate
 
-5. **Reduce context window:**
+5. **Reduce context window** in `config.json`:
    ```json
-   // In config.json
    {
-       "num_ctx": 1024  // Reduce from 2048
+       "num_ctx": 1024
    }
    ```
 
@@ -1037,9 +1037,8 @@ ollama ps
 
 **Long-term solutions:**
 
-1. **Enable low memory mode:**
+1. **Enable low memory mode** in `config.json`:
    ```json
-   // config.json
    {
        "low_memory_mode": true,
        "num_ctx": 1024
