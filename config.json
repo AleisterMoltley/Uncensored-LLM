@@ -70,6 +70,21 @@
       "max_retries": 3
     }
   },
+  "discord": {
+    "bot_token": "",
+    "respond_to_mentions": true,
+    "respond_to_direct": true,
+    "auto_respond": true,
+    "task": "Respond helpfully and engagingly to messages. Use your memory about users to give personalized responses.",
+    "rate_limit": {
+      "enabled": true,
+      "messages_per_second": 1.0,
+      "messages_per_minute": 20,
+      "messages_per_channel_per_minute": 5,
+      "cooldown_seconds": 5.0,
+      "max_retries": 3
+    }
+  },
   "celery": {
     "enabled": false,
     "broker_url": "redis://localhost:6379/0",

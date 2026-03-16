@@ -41,6 +41,7 @@ memory/
 chromadb_data/
 twitter_data/
 telegram_data/
+discord_data/
 
 # Logs
 *.log

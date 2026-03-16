@@ -90,6 +90,30 @@ class TelegramConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
 
+class DiscordRateLimitConfig(BaseModel):
+    """Pydantic model for Discord rate limiting configuration."""
+    enabled: bool = Field(default=True)
+    messages_per_second: float = Field(default=1.0, gt=0)
+    messages_per_minute: int = Field(default=20, ge=1)
+    messages_per_channel_per_minute: int = Field(default=5, ge=1)
+    cooldown_seconds: float = Field(default=5.0, ge=0)
+    max_retries: int = Field(default=3, ge=0)
+
+    model_config = ConfigDict(extra="forbid")
+
+
+class DiscordConfig(BaseModel):
+    """Pydantic model for Discord integration configuration."""
+    bot_token: str = Field(default="")
+    respond_to_mentions: bool = Field(default=True)
+    respond_to_direct: bool = Field(default=True)
+    auto_respond: bool = Field(default=True)
+    task: str = Field(default="")
+    rate_limit: DiscordRateLimitConfig = Field(default_factory=DiscordRateLimitConfig)
+
+    model_config = ConfigDict(extra="forbid")
+
+
 class CeleryConfig(BaseModel):
     """Pydantic model for Celery task queue configuration."""
     enabled: bool = Field(default=False)
@@ -143,6 +167,7 @@ class AppConfig(BaseModel):
     personalities: Dict[str, PersonalityConfig] = Field(default_factory=dict)
     twitter: TwitterConfig = Field(default_factory=TwitterConfig)
     telegram: TelegramConfig = Field(default_factory=TelegramConfig)
+    discord: DiscordConfig = Field(default_factory=DiscordConfig)
     celery: CeleryConfig = Field(default_factory=CeleryConfig)
     redis: RedisConfigModel = Field(default_factory=RedisConfigModel)
 
@@ -214,6 +239,7 @@ if TYPE_CHECKING:
     from langchain_community.vectorstores import Chroma
     from twitter_handler import TwitterHandler
     from telegram_handler import TelegramHandler
+    from discord_handler import DiscordHandler
     from knowledge_memory import KnowledgeMemory
 
 # --- Path constants ---
@@ -471,6 +497,7 @@ class LLMServantApp:
         self._llm: Optional['OllamaLLM'] = None
         self._twitter_handler: Optional['TwitterHandler'] = None
         self._telegram_handler: Optional['TelegramHandler'] = None
+        self._discord_handler: Optional['DiscordHandler'] = None
         self._knowledge_memory: Optional['KnowledgeMemory'] = None
         self._taboo_manager: Optional[TabooManager] = None
         self._conversation_memory: Optional['ConversationMemory'] = None
@@ -632,6 +659,28 @@ class LLMServantApp:
             if self.config.get("telegram", {}).get("bot_token"):
                 self._telegram_handler.configure(self.config.get("telegram", {}))
         return self._telegram_handler
+    
+    def get_discord_handler(self) -> 'DiscordHandler':
+        """Get or create Discord handler instance."""
+        if self._discord_handler is None:
+            from discord_handler import DiscordHandler
+            
+            def llm_callback(prompt: str) -> str:
+                """Callback to generate LLM responses for Discord messages."""
+                llm = self.get_llm()
+                return llm.invoke(prompt)
+            
+            def personality_prompt_builder(query: str) -> str:
+                """Build prompt using active personality."""
+                return self.build_personality_prompt(query)
+            
+            self._discord_handler = DiscordHandler(
+                self.config, llm_callback, personality_prompt_builder
+            )
+            # Initialize with existing config if available
+            if self.config.get("discord", {}).get("bot_token"):
+                self._discord_handler.configure(self.config.get("discord", {}))
+        return self._discord_handler
     
     def get_knowledge_memory(self) -> 'KnowledgeMemory':
         """Get or create KnowledgeMemory instance."""
@@ -818,6 +867,69 @@ class LLMServantApp:
             "file_hash": file_hash,
             "knowledge_extracted": knowledge_result
         }
+    
+    def process_docx(self, filepath: Path) -> Dict[str, Any]:
+        """
+        Read DOCX, split into chunks, store in ChromaDB, and extract knowledge.
+        
+        Args:
+            filepath: Path to the DOCX file
+        
+        Returns:
+            Dictionary with processing results
+        """
+        try:
+            import docx2txt
+        except ImportError:
+            raise ImportError(
+                "docx2txt is required for DOCX support. "
+                "Install it with: pip install docx2txt"
+            )
+        
+        from langchain.text_splitter import RecursiveCharacterTextSplitter
+        from langchain_core.documents import Document
+        
+        # Extract text from DOCX
+        text = docx2txt.process(str(filepath))
+        
+        if not text or not text.strip():
+            raise ValueError(f"No text content found in DOCX file: {filepath.name}")
+        
+        # Create a Document object for consistency with PDF processing
+        doc = Document(page_content=text, metadata={"source": filepath.name})
+        
+        splitter = RecursiveCharacterTextSplitter(
+            chunk_size=self.config["chunk_size"],
+            chunk_overlap=self.config["chunk_overlap"],
+            separators=["\n\n", "\n", ". ", " ", ""]
+        )
+        chunks = splitter.split_documents([doc])
+        
+        filename = Path(filepath).name
+        file_hash = hashlib.md5(open(filepath, "rb").read()).hexdigest()
+        for i, chunk in enumerate(chunks):
+            chunk.metadata["source"] = filename
+            chunk.metadata["file_hash"] = file_hash
+            chunk.metadata["chunk_index"] = i
+            chunk.metadata["upload_date"] = datetime.now().isoformat()
+        
+        vs = self.get_vectorstore()
+        vs.add_documents(chunks)
+        
+        # Extract knowledge to shape bot personality
+        km = self.get_knowledge_memory()
+        chunk_texts = [chunk.page_content for chunk in chunks]
+        knowledge_result = km.extract_knowledge_from_chunks(chunk_texts, filename, file_hash)
+        
+        return {
+            "filename": filename,
+            # DOCX page count not extracted - would require python-docx library for accurate count
+            # Using 1 as placeholder since docx2txt extracts all text without page info
+            "pages": 1,
+            "chunks": len(chunks),
+            "file_hash": file_hash,
+            "knowledge_extracted": knowledge_result
+        }
 
 
 # ============================================================
@@ -860,6 +972,11 @@ def get_telegram_handler() -> 'TelegramHandler':
     return LLMServantApp.get_instance().get_telegram_handler()
 
 
+def get_discord_handler() -> 'DiscordHandler':
+    """Get or create Discord handler instance (backwards compatibility wrapper)."""
+    return LLMServantApp.get_instance().get_discord_handler()
+
+
 def get_knowledge_memory() -> 'KnowledgeMemory':
     """Get or create KnowledgeMemory instance (backwards compatibility wrapper)."""
     return LLMServantApp.get_instance().get_knowledge_memory()
@@ -878,6 +995,11 @@ def build_personality_prompt(query: str, conv_context: str = "", doc_context: st
 def process_pdf(filepath: Path) -> Dict[str, Any]:
     """Process a PDF file (backwards compatibility wrapper)."""
     return LLMServantApp.get_instance().process_pdf(filepath)
+
+
+def process_docx(filepath: Path) -> Dict[str, Any]:
+    """Process a DOCX file (backwards compatibility wrapper)."""
+    return LLMServantApp.get_instance().process_docx(filepath)
 
 
 # ============================================================
@@ -1088,20 +1210,30 @@ def vue_dashboard():
 
 
 @app.route("/api/upload", methods=["POST"])
-def upload_pdf():
+def upload_document():
+    """Upload and process a PDF or DOCX document."""
     if "file" not in request.files:
         return jsonify({"error": "No file uploaded"}), 400
 
     file = request.files["file"]
-    if not file.filename.lower().endswith(".pdf"):
-        return jsonify({"error": "Only PDF files allowed"}), 400
+    filename_lower = file.filename.lower()
+    
+    # Check supported file types
+    if not (filename_lower.endswith(".pdf") or filename_lower.endswith(".docx")):
+        return jsonify({"error": "Only PDF and DOCX files allowed"}), 400
 
     app_instance = LLMServantApp.get_instance()
     filepath = app_instance.upload_dir / file.filename
     file.save(filepath)
 
     try:
-        result = process_pdf(filepath)
+        # Process based on file type
+        if filename_lower.endswith(".pdf"):
+            result = process_pdf(filepath)
+            file_type = "PDF"
+        else:
+            result = process_docx(filepath)
+            file_type = "DOCX"
 
         docs = get_documents_index()
         docs.append({
@@ -1109,28 +1241,34 @@ def upload_pdf():
             "pages": result["pages"],
             "chunks": result["chunks"],
             "file_hash": result["file_hash"],
+            "file_type": file_type,
             "uploaded": datetime.now().isoformat()
         })
         save_documents_index(docs)
 
-        logger.info("PDF uploaded and processed: %s", result["filename"])
+        logger.info("%s uploaded and processed: %s", file_type, result["filename"])
         return jsonify({
             "success": True,
             "message": f"'{result['filename']}' processed: {result['pages']} pages, {result['chunks']} chunks.",
             **result
         })
+    except ImportError as e:
+        logger.error("Missing dependency for document processing: %s", e)
+        if DEBUG_MODE:
+            logger.debug("Stack trace:\n%s", traceback.format_exc())
+        return jsonify({"error": f"Missing dependency: {str(e)}"}), 500
     except (IOError, OSError) as e:
-        logger.error("File I/O error processing PDF: %s", e)
+        logger.error("File I/O error processing document: %s", e)
         if DEBUG_MODE:
             logger.debug("Stack trace:\n%s", traceback.format_exc())
         return jsonify({"error": f"File error: {str(e)}"}), 500
     except ValueError as e:
-        logger.error("Value error processing PDF: %s", e)
+        logger.error("Value error processing document: %s", e)
         if DEBUG_MODE:
             logger.debug("Stack trace:\n%s", traceback.format_exc())
         return jsonify({"error": f"Processing error: {str(e)}"}), 500
     except Exception as e:
-        logger.error("Unexpected error processing PDF: %s", e)
+        logger.error("Unexpected error processing document: %s", e)
         if DEBUG_MODE:
             logger.debug("Stack trace:\n%s", traceback.format_exc())
         return jsonify({"error": f"Processing error: {str(e)}"}), 500
@@ -1138,7 +1276,17 @@ def upload_pdf():
 
 @app.route("/api/documents", methods=["GET"])
 def get_documents():
-    return jsonify(get_documents_index())
+    """Get list of documents with normalized structure (includes file_type for backwards compat)."""
+    docs = get_documents_index()
+    # Add file_type for legacy documents that don't have it (default to PDF)
+    for doc in docs:
+        if "file_type" not in doc:
+            filename = doc.get("filename", "").lower()
+            if filename.endswith(".docx"):
+                doc["file_type"] = "DOCX"
+            else:
+                doc["file_type"] = "PDF"
+    return jsonify(docs)
 
 
 @app.route("/api/documents/<file_hash>", methods=["DELETE"])
@@ -2392,6 +2540,256 @@ def telegram_memory_stats():
 
 
 # ============================================================
+#  DISCORD API ROUTES
+# ============================================================
+
+@app.route("/api/discord/status", methods=["GET"])
+def discord_status():
+    """Get Discord bot status."""
+    try:
+        handler = get_discord_handler()
+        return jsonify(handler.get_status())
+    except ImportError as e:
+        logger.debug("Discord library not installed: %s", e)
+        return jsonify({"error": "discord.py not installed", "configured": False})
+    except (AttributeError, TypeError) as e:
+        log_exception(e, "Error accessing Discord handler")
+        return jsonify({"error": str(e)}), 500
+    except Exception as e:
+        log_exception(e, "Unexpected error getting Discord status")
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/discord/config", methods=["GET"])
+def get_discord_config():
+    """Get current Discord configuration (excluding secrets)."""
+    discord_conf = CONFIG.get("discord", {})
+    return jsonify({
+        "bot_token_set": bool(discord_conf.get("bot_token")),
+        "respond_to_mentions": discord_conf.get("respond_to_mentions", True),
+        "respond_to_direct": discord_conf.get("respond_to_direct", True),
+        "task": discord_conf.get("task", "")
+    })
+
+
+@app.route("/api/discord/config", methods=["PUT"])
+def update_discord_config():
+    """Update Discord configuration."""
+    data = request.json
+    app_instance = LLMServantApp.get_instance()
+    
+    # Get existing discord config or create new
+    discord_conf = app_instance.config.get("discord", {})
+    
+    # Update fields that are provided
+    allowed_fields = ["bot_token", "respond_to_mentions", "respond_to_direct", "task", "rate_limit"]
+    for key in allowed_fields:
+        if key in data:
+            discord_conf[key] = data[key]
+    
+    app_instance.config["discord"] = discord_conf
+    
+    # Save to config file
+    try:
+        with open(CONFIG_PATH, "w") as f:
+            json.dump(app_instance.config, f, indent=2)
+        
+        # Reconfigure handler if it exists
+        handler = get_discord_handler()
+        handler.configure(discord_conf)
+        
+        logger.info("Discord configuration updated")
+        return jsonify({"success": True})
+    except ImportError as e:
+        logger.warning("Discord library not installed: %s", e)
+        return jsonify({"success": False, "error": "discord.py not installed"}), 500
+    except (IOError, OSError) as e:
+        log_exception(e, "Error saving Discord configuration")
+        return jsonify({"error": str(e)}), 500
+    except Exception as e:
+        log_exception(e, "Unexpected error updating Discord config")
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/discord/start", methods=["POST"])
+def discord_start():
+    """Start the Discord bot."""
+    try:
+        handler = get_discord_handler()
+        if not handler.config.get("bot_token"):
+            return jsonify({"error": "Discord bot not configured"}), 400
+        result = handler.start_bot()
+        logger.info("Discord bot started")
+        return jsonify(result)
+    except ImportError as e:
+        logger.warning("Discord library not installed: %s", e)
+        return jsonify({"success": False, "error": "discord.py not installed"}), 500
+    except (AttributeError, TypeError) as e:
+        log_exception(e, "Error starting Discord bot")
+        return jsonify({"error": str(e)}), 500
+    except Exception as e:
+        log_exception(e, "Unexpected error starting Discord bot")
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/discord/stop", methods=["POST"])
+def discord_stop():
+    """Stop the Discord bot."""
+    try:
+        handler = get_discord_handler()
+        result = handler.stop_bot()
+        logger.info("Discord bot stopped")
+        return jsonify(result)
+    except (AttributeError, TypeError) as e:
+        log_exception(e, "Error stopping Discord bot")
+        return jsonify({"error": str(e)}), 500
+    except Exception as e:
+        log_exception(e, "Unexpected error stopping Discord bot")
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/discord/history", methods=["GET"])
+def discord_history():
+    """Get Discord message processing history."""
+    try:
+        handler = get_discord_handler()
+        limit = request.args.get("limit", 50, type=int)
+        return jsonify(handler.get_history(limit=limit))
+    except (IOError, OSError) as e:
+        log_exception(e, "Error reading Discord history")
+        return jsonify({"error": str(e)}), 500
+    except (AttributeError, KeyError) as e:
+        log_exception(e, "Error accessing Discord history data")
+        return jsonify({"error": str(e)}), 500
+    except Exception as e:
+        log_exception(e, "Unexpected error getting Discord history")
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/discord/history", methods=["DELETE"])
+def discord_clear_history():
+    """Clear Discord message processing history."""
+    try:
+        handler = get_discord_handler()
+        result = handler.clear_history()
+        logger.info("Discord history cleared")
+        return jsonify(result)
+    except (IOError, OSError) as e:
+        log_exception(e, "Error clearing Discord history")
+        return jsonify({"error": str(e)}), 500
+    except Exception as e:
+        log_exception(e, "Unexpected error clearing Discord history")
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/discord/memories", methods=["GET"])
+def discord_get_memories():
+    """Get all Discord user memory summaries."""
+    try:
+        handler = get_discord_handler()
+        limit = request.args.get("limit", 50, type=int)
+        return jsonify(handler.get_user_memories(limit=limit))
+    except (IOError, OSError) as e:
+        log_exception(e, "Error reading Discord memories")
+        return jsonify({"error": str(e)}), 500
+    except (AttributeError, KeyError) as e:
+        log_exception(e, "Error accessing Discord memories")
+        return jsonify({"error": str(e)}), 500
+    except Exception as e:
+        log_exception(e, "Unexpected error getting Discord memories")
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/discord/memories/<int:user_id>/<int:guild_id>", methods=["GET"])
+def discord_get_user_memory(user_id, guild_id):
+    """Get detailed memory for a specific Discord user."""
+    try:
+        handler = get_discord_handler()
+        memory = handler.get_user_memory_detail(user_id, guild_id)
+        return jsonify(memory)
+    except (KeyError, AttributeError) as e:
+        log_exception(e, "Error accessing user memory")
+        return jsonify({"error": str(e)}), 500
+    except Exception as e:
+        log_exception(e, "Unexpected error getting user memory")
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/discord/memories/<int:user_id>/<int:guild_id>", methods=["DELETE"])
+def discord_clear_user_memory(user_id, guild_id):
+    """Clear memory for a specific Discord user."""
+    try:
+        handler = get_discord_handler()
+        result = handler.clear_user_memory(user_id, guild_id)
+        logger.info("Discord memory cleared for user %d in guild %d", user_id, guild_id)
+        return jsonify(result)
+    except (IOError, OSError) as e:
+        log_exception(e, "Error clearing user memory")
+        return jsonify({"error": str(e)}), 500
+    except Exception as e:
+        log_exception(e, "Unexpected error clearing user memory")
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/discord/memories", methods=["DELETE"])
+def discord_clear_all_memories():
+    """Clear all Discord user memories."""
+    try:
+        handler = get_discord_handler()
+        result = handler.clear_all_memories()
+        logger.info("All Discord user memories cleared")
+        return jsonify(result)
+    except (IOError, OSError) as e:
+        log_exception(e, "Error clearing all memories")
+        return jsonify({"error": str(e)}), 500
+    except Exception as e:
+        log_exception(e, "Unexpected error clearing all memories")
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/discord/memories/<int:user_id>/<int:guild_id>/fact", methods=["POST"])
+def discord_add_user_fact(user_id, guild_id):
+    """Manually add a fact about a Discord user."""
+    data = request.json
+    try:
+        fact = data.get("fact", "").strip()
+        if not fact:
+            return jsonify({"error": "Fact is required"}), 400
+        
+        handler = get_discord_handler()
+        result = handler.add_user_fact(user_id, guild_id, fact)
+        logger.info("Added fact for Discord user %d in guild %d", user_id, guild_id)
+        return jsonify(result)
+    except (ValueError, TypeError) as e:
+        log_exception(e, "Invalid fact data")
+        return jsonify({"error": str(e)}), 400
+    except (IOError, OSError) as e:
+        log_exception(e, "Error saving user fact")
+        return jsonify({"error": str(e)}), 500
+    except Exception as e:
+        log_exception(e, "Unexpected error adding user fact")
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/discord/memory-stats", methods=["GET"])
+def discord_memory_stats():
+    """Get Discord user memory statistics."""
+    try:
+        handler = get_discord_handler()
+        stats = handler.user_memory.get_statistics()
+        return jsonify(stats)
+    except (IOError, OSError) as e:
+        log_exception(e, "Error reading memory statistics")
+        return jsonify({"error": str(e)}), 500
+    except (AttributeError, KeyError) as e:
+        log_exception(e, "Error accessing memory statistics")
+        return jsonify({"error": str(e)}), 500
+    except Exception as e:
+        log_exception(e, "Unexpected error getting memory statistics")
+        return jsonify({"error": str(e)}), 500
+
+
+# ============================================================
 #  TABOO API ROUTES
 # ============================================================
 
@@ -2952,6 +3350,9 @@ if __name__ == "__main__":
     
     telegram_configured = bool(CONFIG.get("telegram", {}).get("bot_token"))
     print(f"   Telegram:    {'✓ Configured' if telegram_configured else '✗ Not configured'}")
+    
+    discord_configured = bool(CONFIG.get("discord", {}).get("bot_token"))
+    print(f"   Discord:     {'✓ Configured' if discord_configured else '✗ Not configured'}")
     
     # Celery/Background Tasks status
     try:
