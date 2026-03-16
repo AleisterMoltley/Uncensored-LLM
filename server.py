@@ -64,7 +64,7 @@ def log_exception(e: Exception, context: str = "") -> None:
         e: The exception to log
         context: Additional context about where the exception occurred
     """
-    error_msg = f"{context}: {e}" if context else str(e)
+    error_msg = f"{context}: {type(e).__name__}: {e}" if context else f"{type(e).__name__}: {e}"
     
     if isinstance(e, (ValueError, KeyError, TypeError)):
         logger.warning(error_msg)
@@ -446,7 +446,7 @@ class LLMServantApp:
             if DEBUG_MODE:
                 logger.debug("Stack trace:\n%s", traceback.format_exc())
         except requests.exceptions.ConnectionError:
-            logger.debug("Could not connect to Ollama server for model unloading")
+            logger.info("Could not connect to Ollama server for model unloading (server may not be running)")
         except (requests.exceptions.RequestException, KeyError, json.JSONDecodeError) as e:
             logger.warning("Error unloading unused models: %s", e)
             if DEBUG_MODE:
@@ -1102,12 +1102,14 @@ def health():
         logger.warning("Timeout checking Ollama status")
     except subprocess.SubprocessError as e:
         logger.debug("Subprocess error checking Ollama: %s", e)
-    except FileNotFoundError:
-        logger.debug("Ollama command not found")
     except OSError as e:
-        logger.warning("OS error checking Ollama: %s", e)
-        if DEBUG_MODE:
-            logger.debug("Stack trace:\n%s", traceback.format_exc())
+        # Includes FileNotFoundError when ollama command is not found
+        if e.errno == 2:  # ENOENT - file not found
+            logger.debug("Ollama command not found")
+        else:
+            logger.warning("OS error checking Ollama: %s", e)
+            if DEBUG_MODE:
+                logger.debug("Stack trace:\n%s", traceback.format_exc())
 
     docs = get_documents_index()
     
