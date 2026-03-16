@@ -2,17 +2,275 @@
 Telegram Integration Handler for LocalLLM
 Responds to messages in Telegram chats when the bot is mentioned.
 Maintains persistent user memory for personalized interactions.
+Includes rate limiting to avoid Telegram API bans.
 """
 
 import json
+import logging
 import threading
 import time
 import re
+from collections import deque
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Optional, Dict, List, Any, Callable
+from typing import Optional, Dict, List, Any, Callable, TypedDict, Tuple
 
 from utils import PersistentStorage
+
+
+# Logger for Telegram handler
+logger = logging.getLogger("llm_servant.telegram")
+
+
+class RateLimitConfig(TypedDict, total=False):
+    """Configuration for rate limiting Telegram messages."""
+    # Messages per second limit (default: 1)
+    messages_per_second: float
+    # Messages per minute limit (default: 20)
+    messages_per_minute: int
+    # Messages per chat per minute (default: 3)
+    messages_per_chat_per_minute: int
+    # Cooldown after hitting limit in seconds (default: 5)
+    cooldown_seconds: float
+    # Maximum retry attempts (default: 3)
+    max_retries: int
+    # Enable rate limiting (default: True)
+    enabled: bool
+
+
+class RateLimiter:
+    """
+    Rate limiter for Telegram bot messages to avoid API bans.
+    
+    Telegram limits:
+    - ~30 messages per second overall
+    - ~20 messages per minute per chat
+    - Stricter limits for groups
+    
+    This limiter is conservative to avoid hitting any limits.
+    """
+    
+    def __init__(self, config: Optional[RateLimitConfig] = None):
+        """
+        Initialize the rate limiter.
+        
+        Args:
+            config: Rate limit configuration
+        """
+        self.config = config or {}
+        self._lock = threading.Lock()
+        
+        # Global message timestamps (for per-second limiting)
+        self._global_timestamps: deque = deque(maxlen=100)
+        
+        # Per-chat message timestamps (for per-chat limiting)
+        self._chat_timestamps: Dict[int, deque] = {}
+        
+        # Track if currently in cooldown
+        self._cooldown_until: float = 0
+        
+        # Statistics
+        self._stats = {
+            "messages_sent": 0,
+            "messages_delayed": 0,
+            "messages_blocked": 0,
+            "rate_limit_hits": 0
+        }
+    
+    @property
+    def enabled(self) -> bool:
+        """Check if rate limiting is enabled."""
+        return self.config.get("enabled", True)
+    
+    @property
+    def messages_per_second(self) -> float:
+        """Get messages per second limit."""
+        return self.config.get("messages_per_second", 1.0)
+    
+    @property
+    def messages_per_minute(self) -> int:
+        """Get messages per minute limit."""
+        return self.config.get("messages_per_minute", 20)
+    
+    @property
+    def messages_per_chat_per_minute(self) -> int:
+        """Get messages per chat per minute limit."""
+        return self.config.get("messages_per_chat_per_minute", 3)
+    
+    @property
+    def cooldown_seconds(self) -> float:
+        """Get cooldown duration after hitting limit."""
+        return self.config.get("cooldown_seconds", 5.0)
+    
+    @property
+    def max_retries(self) -> int:
+        """Get maximum retry attempts."""
+        return self.config.get("max_retries", 3)
+    
+    def configure(self, config: RateLimitConfig):
+        """Update rate limiter configuration."""
+        self.config.update(config)
+    
+    def _clean_old_timestamps(self, timestamps: deque, max_age_seconds: float = 60.0):
+        """Remove timestamps older than max_age_seconds."""
+        now = time.time()
+        while timestamps and (now - timestamps[0]) > max_age_seconds:
+            timestamps.popleft()
+    
+    def _get_chat_timestamps(self, chat_id: int) -> deque:
+        """Get or create timestamp deque for a chat."""
+        if chat_id not in self._chat_timestamps:
+            self._chat_timestamps[chat_id] = deque(maxlen=100)
+        return self._chat_timestamps[chat_id]
+    
+    def can_send(self, chat_id: int) -> Tuple[bool, float]:
+        """
+        Check if a message can be sent now.
+        
+        Args:
+            chat_id: The Telegram chat ID
+            
+        Returns:
+            Tuple of (can_send: bool, wait_time: float)
+        """
+        if not self.enabled:
+            return True, 0.0
+        
+        now = time.time()
+        
+        with self._lock:
+            # Check if in cooldown
+            if now < self._cooldown_until:
+                wait_time = self._cooldown_until - now
+                return False, wait_time
+            
+            # Clean old timestamps
+            self._clean_old_timestamps(self._global_timestamps, 60.0)
+            
+            chat_timestamps = self._get_chat_timestamps(chat_id)
+            self._clean_old_timestamps(chat_timestamps, 60.0)
+            
+            # Check global per-second limit
+            recent_global = sum(1 for ts in self._global_timestamps if now - ts < 1.0)
+            if recent_global >= self.messages_per_second:
+                # Calculate wait time until next message can be sent
+                if self._global_timestamps:
+                    wait_time = 1.0 - (now - self._global_timestamps[-1])
+                else:
+                    wait_time = 1.0
+                return False, max(0.1, wait_time)
+            
+            # Check global per-minute limit
+            if len(self._global_timestamps) >= self.messages_per_minute:
+                oldest = self._global_timestamps[0]
+                wait_time = 60.0 - (now - oldest)
+                if wait_time > 0:
+                    return False, wait_time
+            
+            # Check per-chat per-minute limit
+            if len(chat_timestamps) >= self.messages_per_chat_per_minute:
+                oldest = chat_timestamps[0]
+                wait_time = 60.0 - (now - oldest)
+                if wait_time > 0:
+                    return False, wait_time
+            
+            return True, 0.0
+    
+    def record_send(self, chat_id: int):
+        """Record that a message was sent."""
+        now = time.time()
+        with self._lock:
+            self._global_timestamps.append(now)
+            self._get_chat_timestamps(chat_id).append(now)
+            self._stats["messages_sent"] += 1
+    
+    def record_delay(self):
+        """Record that a message was delayed."""
+        with self._lock:
+            self._stats["messages_delayed"] += 1
+    
+    def record_blocked(self):
+        """Record that a message was blocked."""
+        with self._lock:
+            self._stats["messages_blocked"] += 1
+    
+    def trigger_cooldown(self, duration: Optional[float] = None):
+        """
+        Trigger a cooldown period (usually after hitting a rate limit).
+        
+        Args:
+            duration: Cooldown duration in seconds (uses config default if None)
+        """
+        if duration is None:
+            duration = self.cooldown_seconds
+        
+        with self._lock:
+            self._cooldown_until = time.time() + duration
+            self._stats["rate_limit_hits"] += 1
+            logger.warning("Rate limit triggered, cooldown for %.1f seconds", duration)
+    
+    def wait_if_needed(self, chat_id: int, max_wait: float = 30.0) -> bool:
+        """
+        Wait if necessary to respect rate limits.
+        
+        Args:
+            chat_id: The Telegram chat ID
+            max_wait: Maximum time to wait in seconds
+            
+        Returns:
+            True if message can be sent, False if blocked after max_wait
+        """
+        if not self.enabled:
+            return True
+        
+        total_waited = 0.0
+        
+        while total_waited < max_wait:
+            can_send, wait_time = self.can_send(chat_id)
+            
+            if can_send:
+                return True
+            
+            # Limit wait time to remaining max_wait
+            actual_wait = min(wait_time, max_wait - total_waited)
+            if actual_wait <= 0:
+                break
+            
+            self.record_delay()
+            logger.debug("Rate limiting: waiting %.2f seconds before sending to chat %d", 
+                        actual_wait, chat_id)
+            time.sleep(actual_wait)
+            total_waited += actual_wait
+        
+        self.record_blocked()
+        logger.warning("Message blocked after waiting %.1f seconds (chat %d)", total_waited, chat_id)
+        return False
+    
+    def get_statistics(self) -> Dict[str, Any]:
+        """Get rate limiter statistics."""
+        with self._lock:
+            return {
+                **self._stats,
+                "in_cooldown": time.time() < self._cooldown_until,
+                "cooldown_remaining": max(0, self._cooldown_until - time.time()),
+                "config": {
+                    "enabled": self.enabled,
+                    "messages_per_second": self.messages_per_second,
+                    "messages_per_minute": self.messages_per_minute,
+                    "messages_per_chat_per_minute": self.messages_per_chat_per_minute,
+                    "cooldown_seconds": self.cooldown_seconds
+                }
+            }
+    
+    def reset_statistics(self):
+        """Reset rate limiter statistics."""
+        with self._lock:
+            self._stats = {
+                "messages_sent": 0,
+                "messages_delayed": 0,
+                "messages_blocked": 0,
+                "rate_limit_hits": 0
+            }
 
 
 # Telegram data persistence
@@ -279,6 +537,7 @@ class TelegramHandler:
     - Responds automatically using the LLM (no approval needed)
     - Maintains persistent user memory
     - Uses active personality from dashboard
+    - Includes rate limiting to avoid Telegram API bans
     """
     
     def __init__(self, config: Dict, llm_callback: Callable[[str], str],
@@ -302,6 +561,10 @@ class TelegramHandler:
         self._bot_running = False
         self._history: List[Dict] = []
         self._load_history()
+        
+        # Initialize rate limiter
+        rate_limit_config = self.config.get("rate_limit", {})
+        self.rate_limiter = RateLimiter(rate_limit_config)
     
     def _load_history(self):
         """Load message history from disk."""
@@ -332,8 +595,14 @@ class TelegramHandler:
                 - respond_to_mentions: Whether to respond when mentioned in groups
                 - respond_to_direct: Whether to respond to direct messages
                 - task: Description of how the bot should behave
+                - rate_limit: Optional rate limit configuration
         """
         self.config = telegram_config
+        
+        # Update rate limiter configuration if provided
+        if "rate_limit" in telegram_config:
+            self.rate_limiter.configure(telegram_config["rate_limit"])
+        
         return self.get_status()
     
     def _init_bot(self) -> bool:
@@ -359,7 +628,7 @@ class TelegramHandler:
             return False
     
     def get_status(self) -> Dict:
-        """Get current Telegram handler status."""
+        """Get current Telegram handler status including rate limiter info."""
         return {
             "configured": bool(self.config.get("bot_token")),
             "running": self._bot_running,
@@ -369,7 +638,8 @@ class TelegramHandler:
             "task": self.config.get("task", ""),
             "messages_total": len(self._history),
             "messages_replied": len([h for h in self._history if h.get("replied")]),
-            "user_memory": self.user_memory.get_statistics()
+            "user_memory": self.user_memory.get_statistics(),
+            "rate_limiter": self.rate_limiter.get_statistics()
         }
     
     def _is_bot_mentioned(self, text: str) -> bool:
@@ -572,25 +842,28 @@ class TelegramHandler:
         return {"success": True, "message": "Bot stopped"}
     
     def _bot_loop(self):
-        """Main bot polling loop using python-telegram-bot."""
+        """Main bot polling loop using python-telegram-bot with rate limiting."""
         try:
             import asyncio
             from telegram import Update, Bot
+            from telegram.error import RetryAfter, TimedOut, NetworkError
             from telegram.ext import Application, MessageHandler, filters, ContextTypes
             
             bot_token = self.config.get("bot_token")
+            rate_limiter = self.rate_limiter  # Reference to rate limiter
             
             async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-                """Handle incoming messages."""
+                """Handle incoming messages with rate limiting."""
                 if not update.message or not update.message.text:
                     return
                 
                 message = update.message
+                chat_id = message.chat.id
                 
                 # Prepare message data
                 message_data = {
                     "message_id": message.message_id,
-                    "chat_id": message.chat.id,
+                    "chat_id": chat_id,
                     "user_id": message.from_user.id if message.from_user else 0,
                     "username": message.from_user.username if message.from_user else None,
                     "first_name": message.from_user.first_name if message.from_user else None,
@@ -604,16 +877,72 @@ class TelegramHandler:
                 
                 # Send response if one was generated
                 if result.get("should_respond") and result.get("generated_response"):
-                    try:
-                        await message.reply_text(result["generated_response"])
-                        # Update history to mark as replied
+                    # Apply rate limiting before sending
+                    can_send = rate_limiter.wait_if_needed(chat_id)
+                    
+                    if not can_send:
+                        logger.warning("Message blocked by rate limiter for chat %d", chat_id)
+                        # Update history to mark as rate limited
                         for entry in self._history:
                             if entry.get("message_id") == message.message_id:
-                                entry["replied"] = True
+                                entry["rate_limited"] = True
                                 break
                         self._save_history()
-                    except Exception as e:
-                        print(f"⚠️ Failed to send Telegram response: {e}")
+                        return
+                    
+                    # Try to send with retry logic for rate limit errors
+                    max_retries = rate_limiter.max_retries
+                    for attempt in range(max_retries):
+                        try:
+                            await message.reply_text(result["generated_response"])
+                            # Record successful send
+                            rate_limiter.record_send(chat_id)
+                            # Update history to mark as replied
+                            for entry in self._history:
+                                if entry.get("message_id") == message.message_id:
+                                    entry["replied"] = True
+                                    break
+                            self._save_history()
+                            break
+                            
+                        except RetryAfter as e:
+                            # Telegram explicitly told us to retry after X seconds
+                            wait_time = e.retry_after
+                            logger.warning("Telegram rate limit hit, retry after %d seconds", wait_time)
+                            rate_limiter.trigger_cooldown(wait_time + 1)
+                            
+                            if attempt < max_retries - 1:
+                                await asyncio.sleep(wait_time + 1)
+                            else:
+                                logger.error("Max retries reached for message %d", message.message_id)
+                                for entry in self._history:
+                                    if entry.get("message_id") == message.message_id:
+                                        entry["rate_limited"] = True
+                                        break
+                                self._save_history()
+                                
+                        except TimedOut:
+                            logger.warning("Telegram request timed out, attempt %d/%d", 
+                                         attempt + 1, max_retries)
+                            if attempt < max_retries - 1:
+                                await asyncio.sleep(2)
+                            else:
+                                logger.error("Max retries reached due to timeout for message %d", 
+                                           message.message_id)
+                                           
+                        except NetworkError as e:
+                            logger.warning("Network error: %s, attempt %d/%d", 
+                                         str(e), attempt + 1, max_retries)
+                            if attempt < max_retries - 1:
+                                await asyncio.sleep(2)
+                            else:
+                                logger.error("Max retries reached due to network error for message %d", 
+                                           message.message_id)
+                                           
+                        except Exception as e:
+                            logger.error("Failed to send Telegram response: %s", str(e))
+                            print(f"⚠️ Failed to send Telegram response: {e}")
+                            break
             
             # Create application
             app = Application.builder().token(bot_token).build()
@@ -714,3 +1043,55 @@ class TelegramHandler:
         """Manually add a fact about a user."""
         self.user_memory.add_fact(user_id, chat_id, fact)
         return {"success": True, "message": "Fact added"}
+    
+    # Rate limiter management methods
+    
+    def get_rate_limit_config(self) -> RateLimitConfig:
+        """Get the current rate limit configuration."""
+        return self.rate_limiter.config
+    
+    def set_rate_limit_config(self, config: RateLimitConfig) -> Dict:
+        """
+        Update the rate limit configuration.
+        
+        Args:
+            config: New rate limit settings
+            
+        Returns:
+            Updated status with new configuration
+        """
+        self.rate_limiter.configure(config)
+        self.config["rate_limit"] = config
+        return {
+            "success": True,
+            "rate_limit": self.rate_limiter.get_statistics()
+        }
+    
+    def enable_rate_limiting(self, enabled: bool = True) -> Dict:
+        """
+        Enable or disable rate limiting.
+        
+        Args:
+            enabled: Whether to enable rate limiting
+            
+        Returns:
+            Updated status
+        """
+        self.rate_limiter.configure({"enabled": enabled})
+        return {
+            "success": True,
+            "enabled": enabled,
+            "rate_limit": self.rate_limiter.get_statistics()
+        }
+    
+    def get_rate_limit_statistics(self) -> Dict:
+        """Get rate limiter statistics."""
+        return self.rate_limiter.get_statistics()
+    
+    def reset_rate_limit_statistics(self) -> Dict:
+        """Reset rate limiter statistics."""
+        self.rate_limiter.reset_statistics()
+        return {
+            "success": True,
+            "message": "Rate limiter statistics reset"
+        }

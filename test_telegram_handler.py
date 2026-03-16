@@ -482,5 +482,237 @@ class TestTelegramHandlerDisabledResponses(unittest.TestCase):
             shutil.rmtree(temp_dir, ignore_errors=True)
 
 
+class TestRateLimiter(unittest.TestCase):
+    """Test cases for RateLimiter class."""
+    
+    def test_initialization_default(self):
+        """Test that RateLimiter initializes with default values."""
+        from telegram_handler import RateLimiter
+        
+        limiter = RateLimiter()
+        
+        self.assertTrue(limiter.enabled)
+        self.assertEqual(limiter.messages_per_second, 1.0)
+        self.assertEqual(limiter.messages_per_minute, 20)
+        self.assertEqual(limiter.messages_per_chat_per_minute, 3)
+        self.assertEqual(limiter.cooldown_seconds, 5.0)
+        self.assertEqual(limiter.max_retries, 3)
+    
+    def test_initialization_custom(self):
+        """Test that RateLimiter initializes with custom values."""
+        from telegram_handler import RateLimiter
+        
+        config = {
+            "enabled": False,
+            "messages_per_second": 2.0,
+            "messages_per_minute": 30,
+            "messages_per_chat_per_minute": 5,
+            "cooldown_seconds": 10.0,
+            "max_retries": 5
+        }
+        
+        limiter = RateLimiter(config)
+        
+        self.assertFalse(limiter.enabled)
+        self.assertEqual(limiter.messages_per_second, 2.0)
+        self.assertEqual(limiter.messages_per_minute, 30)
+        self.assertEqual(limiter.messages_per_chat_per_minute, 5)
+        self.assertEqual(limiter.cooldown_seconds, 10.0)
+        self.assertEqual(limiter.max_retries, 5)
+    
+    def test_can_send_when_disabled(self):
+        """Test that can_send always returns True when disabled."""
+        from telegram_handler import RateLimiter
+        
+        limiter = RateLimiter({"enabled": False})
+        
+        can_send, wait_time = limiter.can_send(12345)
+        self.assertTrue(can_send)
+        self.assertEqual(wait_time, 0.0)
+    
+    def test_can_send_initial(self):
+        """Test that can_send returns True initially."""
+        from telegram_handler import RateLimiter
+        
+        limiter = RateLimiter({"enabled": True})
+        
+        can_send, wait_time = limiter.can_send(12345)
+        self.assertTrue(can_send)
+        self.assertEqual(wait_time, 0.0)
+    
+    def test_record_send_updates_stats(self):
+        """Test that record_send updates statistics."""
+        from telegram_handler import RateLimiter
+        
+        limiter = RateLimiter()
+        
+        initial_stats = limiter.get_statistics()
+        self.assertEqual(initial_stats["messages_sent"], 0)
+        
+        limiter.record_send(12345)
+        
+        updated_stats = limiter.get_statistics()
+        self.assertEqual(updated_stats["messages_sent"], 1)
+    
+    def test_record_delay_updates_stats(self):
+        """Test that record_delay updates statistics."""
+        from telegram_handler import RateLimiter
+        
+        limiter = RateLimiter()
+        limiter.record_delay()
+        
+        stats = limiter.get_statistics()
+        self.assertEqual(stats["messages_delayed"], 1)
+    
+    def test_record_blocked_updates_stats(self):
+        """Test that record_blocked updates statistics."""
+        from telegram_handler import RateLimiter
+        
+        limiter = RateLimiter()
+        limiter.record_blocked()
+        
+        stats = limiter.get_statistics()
+        self.assertEqual(stats["messages_blocked"], 1)
+    
+    def test_trigger_cooldown(self):
+        """Test that trigger_cooldown sets cooldown state."""
+        from telegram_handler import RateLimiter
+        
+        limiter = RateLimiter()
+        limiter.trigger_cooldown(2.0)
+        
+        stats = limiter.get_statistics()
+        self.assertTrue(stats["in_cooldown"])
+        self.assertGreater(stats["cooldown_remaining"], 0)
+        self.assertEqual(stats["rate_limit_hits"], 1)
+    
+    def test_configure(self):
+        """Test that configure updates settings."""
+        from telegram_handler import RateLimiter
+        
+        limiter = RateLimiter()
+        self.assertTrue(limiter.enabled)
+        
+        limiter.configure({"enabled": False, "messages_per_minute": 50})
+        
+        self.assertFalse(limiter.enabled)
+        self.assertEqual(limiter.messages_per_minute, 50)
+    
+    def test_reset_statistics(self):
+        """Test that reset_statistics clears stats."""
+        from telegram_handler import RateLimiter
+        
+        limiter = RateLimiter()
+        limiter.record_send(12345)
+        limiter.record_delay()
+        
+        limiter.reset_statistics()
+        
+        stats = limiter.get_statistics()
+        self.assertEqual(stats["messages_sent"], 0)
+        self.assertEqual(stats["messages_delayed"], 0)
+    
+    def test_get_statistics_includes_config(self):
+        """Test that get_statistics includes config info."""
+        from telegram_handler import RateLimiter
+        
+        limiter = RateLimiter({"messages_per_minute": 25})
+        
+        stats = limiter.get_statistics()
+        
+        self.assertIn("config", stats)
+        self.assertEqual(stats["config"]["messages_per_minute"], 25)
+
+
+class TestTelegramHandlerRateLimiting(unittest.TestCase):
+    """Test cases for TelegramHandler rate limiting integration."""
+    
+    def setUp(self):
+        """Set up test fixtures."""
+        self.config = {
+            "telegram": {
+                "bot_token": "test_token_123",
+                "bot_username": "test_bot",
+                "respond_to_mentions": True,
+                "respond_to_direct": True,
+                "task": "Be helpful and friendly",
+                "rate_limit": {
+                    "enabled": True,
+                    "messages_per_minute": 10
+                }
+            }
+        }
+        self.llm_callback = MagicMock(return_value="Test response")
+        self.temp_dir = Path(tempfile.mkdtemp())
+    
+    def tearDown(self):
+        """Clean up temporary directory."""
+        shutil.rmtree(self.temp_dir, ignore_errors=True)
+    
+    def test_handler_has_rate_limiter(self):
+        """Test that TelegramHandler initializes with rate limiter."""
+        with patch('telegram_handler.TELEGRAM_DIR', self.temp_dir):
+            with patch('telegram_handler.HISTORY_FILE', self.temp_dir / "history.json"):
+                with patch('telegram_handler.USER_MEMORY_FILE', self.temp_dir / "memories.json.gz"):
+                    handler = TelegramHandler(self.config, self.llm_callback)
+        
+        self.assertIsNotNone(handler.rate_limiter)
+        self.assertTrue(handler.rate_limiter.enabled)
+    
+    def test_status_includes_rate_limiter(self):
+        """Test that get_status includes rate limiter info."""
+        with patch('telegram_handler.TELEGRAM_DIR', self.temp_dir):
+            with patch('telegram_handler.HISTORY_FILE', self.temp_dir / "history.json"):
+                with patch('telegram_handler.USER_MEMORY_FILE', self.temp_dir / "memories.json.gz"):
+                    handler = TelegramHandler(self.config, self.llm_callback)
+        
+        status = handler.get_status()
+        self.assertIn("rate_limiter", status)
+    
+    def test_configure_updates_rate_limiter(self):
+        """Test that configure updates rate limiter config."""
+        with patch('telegram_handler.TELEGRAM_DIR', self.temp_dir):
+            with patch('telegram_handler.HISTORY_FILE', self.temp_dir / "history.json"):
+                with patch('telegram_handler.USER_MEMORY_FILE', self.temp_dir / "memories.json.gz"):
+                    handler = TelegramHandler(self.config, self.llm_callback)
+        
+        new_config = {
+            "bot_token": "new_token",
+            "rate_limit": {
+                "messages_per_minute": 50
+            }
+        }
+        
+        handler.configure(new_config)
+        
+        self.assertEqual(handler.rate_limiter.messages_per_minute, 50)
+    
+    def test_enable_rate_limiting(self):
+        """Test enable_rate_limiting method."""
+        with patch('telegram_handler.TELEGRAM_DIR', self.temp_dir):
+            with patch('telegram_handler.HISTORY_FILE', self.temp_dir / "history.json"):
+                with patch('telegram_handler.USER_MEMORY_FILE', self.temp_dir / "memories.json.gz"):
+                    handler = TelegramHandler(self.config, self.llm_callback)
+        
+        result = handler.enable_rate_limiting(False)
+        
+        self.assertTrue(result["success"])
+        self.assertFalse(result["enabled"])
+        self.assertFalse(handler.rate_limiter.enabled)
+    
+    def test_get_rate_limit_statistics(self):
+        """Test get_rate_limit_statistics method."""
+        with patch('telegram_handler.TELEGRAM_DIR', self.temp_dir):
+            with patch('telegram_handler.HISTORY_FILE', self.temp_dir / "history.json"):
+                with patch('telegram_handler.USER_MEMORY_FILE', self.temp_dir / "memories.json.gz"):
+                    handler = TelegramHandler(self.config, self.llm_callback)
+        
+        stats = handler.get_rate_limit_statistics()
+        
+        self.assertIn("messages_sent", stats)
+        self.assertIn("messages_delayed", stats)
+        self.assertIn("config", stats)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -38,7 +38,21 @@
     "task": "",
     "search_keywords": [],
     "scan_interval_minutes": 5,
-    "auto_reply": true
+    "auto_reply": true,
+    "v2_filters": {
+      "exclude_retweets": true,
+      "exclude_replies": true,
+      "exclude_quotes": false,
+      "exclude_nullcast": true,
+      "language": "en",
+      "has_media": false,
+      "has_links": false,
+      "is_verified": false,
+      "min_retweets": 0,
+      "min_likes": 0,
+      "min_replies": 0,
+      "max_age_hours": 3
+    }
   },
   "telegram": {
     "bot_token": "",
@@ -46,7 +60,15 @@
     "respond_to_mentions": true,
     "respond_to_direct": true,
     "auto_respond": true,
-    "task": "Respond helpfully and engagingly to messages. Use your memory about users to give personalized responses."
+    "task": "Respond helpfully and engagingly to messages. Use your memory about users to give personalized responses.",
+    "rate_limit": {
+      "enabled": true,
+      "messages_per_second": 1.0,
+      "messages_per_minute": 20,
+      "messages_per_chat_per_minute": 3,
+      "cooldown_seconds": 5.0,
+      "max_retries": 3
+    }
   },
   "celery": {
     "enabled": false,
