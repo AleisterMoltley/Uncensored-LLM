@@ -23,6 +23,178 @@ import requests
 import psutil
 from flask import Flask, request, jsonify, send_from_directory, Response, stream_with_context
 from flask_cors import CORS
+from pydantic import BaseModel, Field, field_validator, model_validator, ConfigDict
+
+
+# ============================================================
+#  PYDANTIC CONFIG SCHEMA MODELS
+# ============================================================
+
+
+class TwitterV2FiltersConfig(BaseModel):
+    """Pydantic model for Twitter API v2 filters configuration."""
+    exclude_retweets: bool = Field(default=True)
+    exclude_replies: bool = Field(default=True)
+    exclude_quotes: bool = Field(default=False)
+    exclude_nullcast: bool = Field(default=True)
+    language: str = Field(default="en")
+    has_media: bool = Field(default=False)
+    has_links: bool = Field(default=False)
+    is_verified: bool = Field(default=False)
+    min_retweets: int = Field(default=0, ge=0)
+    min_likes: int = Field(default=0, ge=0)
+    min_replies: int = Field(default=0, ge=0)
+    max_age_hours: int = Field(default=3, ge=1)
+
+    model_config = ConfigDict(extra="forbid")
+
+
+class TwitterConfig(BaseModel):
+    """Pydantic model for Twitter integration configuration."""
+    api_key: str = Field(default="")
+    api_secret: str = Field(default="")
+    access_token: str = Field(default="")
+    access_token_secret: str = Field(default="")
+    bearer_token: str = Field(default="")
+    task: str = Field(default="")
+    search_keywords: List[str] = Field(default_factory=list)
+    scan_interval_minutes: int = Field(default=5, ge=1)
+    auto_reply: bool = Field(default=True)
+    v2_filters: TwitterV2FiltersConfig = Field(default_factory=TwitterV2FiltersConfig)
+
+    model_config = ConfigDict(extra="forbid")
+
+
+class TelegramRateLimitConfig(BaseModel):
+    """Pydantic model for Telegram rate limiting configuration."""
+    enabled: bool = Field(default=True)
+    messages_per_second: float = Field(default=1.0, gt=0)
+    messages_per_minute: int = Field(default=20, ge=1)
+    messages_per_chat_per_minute: int = Field(default=3, ge=1)
+    cooldown_seconds: float = Field(default=5.0, ge=0)
+    max_retries: int = Field(default=3, ge=0)
+
+    model_config = ConfigDict(extra="forbid")
+
+
+class TelegramConfig(BaseModel):
+    """Pydantic model for Telegram integration configuration."""
+    bot_token: str = Field(default="")
+    bot_username: str = Field(default="")
+    respond_to_mentions: bool = Field(default=True)
+    respond_to_direct: bool = Field(default=True)
+    auto_respond: bool = Field(default=True)
+    task: str = Field(default="")
+    rate_limit: TelegramRateLimitConfig = Field(default_factory=TelegramRateLimitConfig)
+
+    model_config = ConfigDict(extra="forbid")
+
+
+class CeleryConfig(BaseModel):
+    """Pydantic model for Celery task queue configuration."""
+    enabled: bool = Field(default=False)
+    broker_url: str = Field(default="redis://localhost:6379/0")
+    result_backend: str = Field(default="redis://localhost:6379/0")
+
+    model_config = ConfigDict(extra="forbid")
+
+
+class RedisConfigModel(BaseModel):
+    """Pydantic model for Redis caching configuration."""
+    enabled: bool = Field(default=False)
+    url: str = Field(default="redis://localhost:6379/0")
+    embedding_cache_ttl: int = Field(default=86400, ge=0)
+
+    model_config = ConfigDict(extra="forbid")
+
+
+class PersonalityConfig(BaseModel):
+    """Pydantic model for personality configuration."""
+    name: str = Field(..., min_length=1)
+    description: str = Field(default="")
+    use_knowledge_memory: bool = Field(default=False)
+    use_uncensored_boost: bool = Field(default=False)
+    system_prompt: str = Field(default="")
+
+    model_config = ConfigDict(extra="forbid")
+
+
+class AppConfig(BaseModel):
+    """
+    Pydantic model for complete application configuration.
+    
+    This model validates config.json to detect misconfigurations early
+    and provides clear error messages for invalid values.
+    """
+    model: str = Field(..., min_length=1, description="Ollama model name")
+    embedding_model: str = Field(default="nomic-embed-text", min_length=1)
+    host: str = Field(default="127.0.0.1")
+    port: int = Field(default=7777, ge=1, le=65535)
+    chunk_size: int = Field(default=600, ge=100, le=10000)
+    chunk_overlap: int = Field(default=100, ge=0)
+    top_k: int = Field(default=5, ge=1, le=100)
+    num_ctx: int = Field(default=2048, ge=512, le=131072)
+    temperature: float = Field(default=0.7, ge=0.0, le=2.0)
+    max_memory_messages: int = Field(default=6, ge=1, le=100)
+    force_uncensored: bool = Field(default=True)
+    low_memory_mode: bool = Field(default=False)
+    system_prompt: str = Field(default="")
+    active_personality: str = Field(default="uncensored_pdf")
+    personalities: Dict[str, PersonalityConfig] = Field(default_factory=dict)
+    twitter: TwitterConfig = Field(default_factory=TwitterConfig)
+    telegram: TelegramConfig = Field(default_factory=TelegramConfig)
+    celery: CeleryConfig = Field(default_factory=CeleryConfig)
+    redis: RedisConfigModel = Field(default_factory=RedisConfigModel)
+
+    model_config = ConfigDict(extra="forbid")
+
+    @field_validator("chunk_overlap")
+    @classmethod
+    def validate_chunk_overlap(cls, v: int, info) -> int:
+        """Ensure chunk_overlap is less than chunk_size."""
+        chunk_size = info.data.get("chunk_size", 600)
+        if v >= chunk_size:
+            raise ValueError(
+                f"chunk_overlap ({v}) must be less than chunk_size ({chunk_size})"
+            )
+        return v
+
+    @model_validator(mode="after")
+    def validate_active_personality_exists(self) -> "AppConfig":
+        """Ensure active_personality references an existing personality."""
+        if self.personalities and self.active_personality not in self.personalities:
+            available = list(self.personalities.keys())
+            raise ValueError(
+                f"active_personality '{self.active_personality}' not found in personalities. "
+                f"Available: {available}"
+            )
+        return self
+
+
+def validate_config(config_dict: Dict[str, Any]) -> AppConfig:
+    """
+    Validate a configuration dictionary against the AppConfig schema.
+    
+    Args:
+        config_dict: Raw configuration dictionary loaded from config.json
+        
+    Returns:
+        Validated AppConfig instance
+        
+    Raises:
+        pydantic.ValidationError: If configuration is invalid
+    """
+    return AppConfig.model_validate(config_dict)
+
+
+class ConfigValidationError(Exception):
+    """Exception raised when config.json validation fails."""
+    
+    def __init__(self, message: str, errors: Optional[List[Dict[str, Any]]] = None):
+        self.message = message
+        self.errors = errors or []
+        super().__init__(self.message)
+
 
 # --- Logging configuration ---
 # Debug mode from environment variable
@@ -255,6 +427,7 @@ class LLMServantApp:
         upload_dir: Optional[Path] = None,
         memory_dir: Optional[Path] = None,
         chroma_dir: Optional[Path] = None,
+        skip_validation: bool = False,
     ):
         """
         Initialize the LLM Servant application.
@@ -265,6 +438,10 @@ class LLMServantApp:
             upload_dir: Directory for uploads. Defaults to UPLOAD_DIR.
             memory_dir: Directory for memory files. Defaults to MEMORY_DIR.
             chroma_dir: Directory for ChromaDB. Defaults to CHROMA_DIR.
+            skip_validation: If True, skip Pydantic validation (useful for testing).
+        
+        Raises:
+            ConfigValidationError: If config.json validation fails.
         """
         # Configuration
         self.config_path = config_path or CONFIG_PATH
@@ -273,6 +450,10 @@ class LLMServantApp:
         else:
             with open(self.config_path) as f:
                 self.config = json.load(f)
+        
+        # Validate configuration using Pydantic schema
+        if not skip_validation:
+            self._validate_config()
         
         # Directories
         self.upload_dir = upload_dir or UPLOAD_DIR
@@ -325,6 +506,38 @@ class LLMServantApp:
         """Save the current configuration to file."""
         with open(self.config_path, "w") as f:
             json.dump(self.config, f, indent=2, ensure_ascii=False)
+    
+    def _validate_config(self) -> None:
+        """
+        Validate the configuration using Pydantic schema.
+        
+        Raises:
+            ConfigValidationError: If validation fails, with detailed error messages.
+        """
+        from pydantic import ValidationError as PydanticValidationError
+        
+        try:
+            validate_config(self.config)
+            logger.debug("Configuration validated successfully")
+        except PydanticValidationError as e:
+            # Format user-friendly error messages
+            error_messages = []
+            for error in e.errors():
+                location = " -> ".join(str(loc) for loc in error["loc"])
+                msg = error["msg"]
+                error_messages.append(f"  - {location}: {msg}")
+            
+            formatted_errors = "\n".join(error_messages)
+            error_msg = (
+                f"Configuration validation failed in {self.config_path}:\n"
+                f"{formatted_errors}\n"
+                f"Please check your config.json file."
+            )
+            logger.error(error_msg)
+            raise ConfigValidationError(
+                error_msg,
+                errors=[dict(error) for error in e.errors()]
+            ) from e
     
     # ---- Component Getters with Lazy Initialization ----
     
