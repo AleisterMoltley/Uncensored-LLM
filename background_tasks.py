@@ -4,13 +4,14 @@ Defines Celery tasks for Twitter scanning and other background operations.
 """
 
 import json
-import logging
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, List, Any, Optional
 
-# Setup logging
-logger = logging.getLogger("llm_servant.tasks")
+from logging_config import get_logger
+
+# Setup logging with file rotation
+logger = get_logger("tasks")
 
 # Path to config file
 CONFIG_PATH = Path(__file__).parent / "config.json"

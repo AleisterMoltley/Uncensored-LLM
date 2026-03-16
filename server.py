@@ -224,15 +224,24 @@ class ConfigValidationError(Exception):
 # --- Logging configuration ---
 # Debug mode from environment variable
 DEBUG_MODE = os.environ.get("LLM_SERVANT_DEBUG", "false").lower() in ("true", "1", "yes")
-LOG_LEVEL = logging.DEBUG if DEBUG_MODE else logging.INFO
 
-# Configure logging with detailed format for debug mode
-logging.basicConfig(
-    level=LOG_LEVEL,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    datefmt='%Y-%m-%d %H:%M:%S'
+# Import centralized logging with file rotation
+from logging_config import setup_logging, get_logger
+
+# Setup logging with file rotation
+setup_logging(debug_mode=DEBUG_MODE)
+logger = get_logger()
+
+# Import metrics module for Prometheus metrics
+from metrics import (
+    start_metrics_collection,
+    get_metrics_response,
+    update_knowledge_metrics,
+    update_session_count,
+    record_request,
+    is_prometheus_available,
+    get_system_stats_dict,
 )
-logger = logging.getLogger("llm_servant")
 
 if TYPE_CHECKING:
     from langchain_ollama import OllamaEmbeddings, OllamaLLM
@@ -1560,6 +1569,57 @@ def get_system_stats():
         })
     except Exception as e:
         log_exception(e, "Error getting system stats")
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/metrics", methods=["GET"])
+def prometheus_metrics():
+    """
+    Prometheus metrics endpoint.
+    
+    Returns system metrics (CPU, RAM) in Prometheus format for scraping.
+    
+    Example response:
+        # HELP llm_servant_ram_usage_percent Current RAM usage as percentage
+        # TYPE llm_servant_ram_usage_percent gauge
+        llm_servant_ram_usage_percent 65.3
+        ...
+    """
+    try:
+        data, content_type = get_metrics_response()
+        return Response(data, mimetype=content_type)
+    except Exception as e:
+        log_exception(e, "Error generating Prometheus metrics")
+        return Response(
+            f"# Error generating metrics: {e}\n",
+            mimetype="text/plain",
+            status=500
+        )
+
+
+@app.route("/api/system/stats/extended", methods=["GET"])
+def get_extended_system_stats():
+    """
+    Get extended system statistics including CPU and detailed RAM metrics.
+    
+    Returns JSON with CPU usage, RAM usage, and process-specific metrics.
+    """
+    try:
+        stats = get_system_stats_dict()
+        
+        # Add low_memory_mode and effective settings
+        stats["config"] = {
+            "low_memory_mode": CONFIG.get("low_memory_mode", False),
+            "effective_num_ctx": get_effective_num_ctx(),
+            "effective_top_k": get_effective_top_k(),
+        }
+        
+        # Add prometheus availability
+        stats["prometheus_available"] = is_prometheus_available()
+        
+        return jsonify(stats)
+    except Exception as e:
+        log_exception(e, "Error getting extended system stats")
         return jsonify({"error": str(e)}), 500
 
 
@@ -3318,6 +3378,7 @@ if __name__ == "__main__":
     print(f"   RAG top_k:   {get_effective_top_k()}")
     print(f"   URL:         http://{CONFIG['host']}:{CONFIG['port']}")
     print(f"   Dashboard:   http://{CONFIG['host']}:{CONFIG['port']}/dashboard")
+    print(f"   Metrics:     http://{CONFIG['host']}:{CONFIG['port']}/metrics")
     print(f"   Documents:   {len(get_documents_index())}")
     print(f"   Debug mode:  {'✓ Enabled' if DEBUG_MODE else '✗ Disabled'}")
     
@@ -3328,11 +3389,27 @@ if __name__ == "__main__":
     except Exception:
         pass
     
+    # Start Prometheus metrics collection
+    try:
+        start_metrics_collection(interval=15.0)
+        print(f"   Prometheus:  {'✓ Available' if is_prometheus_available() else '✗ Not installed (pip install prometheus_client)'}")
+    except Exception as e:
+        logger.warning("Could not start metrics collection: %s", e)
+        print(f"   Prometheus:  ✗ Error starting metrics collector")
+    
     # Knowledge memory status
     try:
         km = get_knowledge_memory()
         km_stats = km.get_statistics()
         print(f"   Knowledge:   {km_stats['total_pdfs_processed']} PDFs learned, {km_stats['total_insights']} insights, {km_stats['file_size_mb']:.2f} MB")
+        
+        # Update Prometheus metrics for knowledge memory
+        if is_prometheus_available():
+            update_knowledge_metrics(
+                size_bytes=int(km_stats['file_size_mb'] * 1024 * 1024),
+                pdf_count=km_stats['total_pdfs_processed'],
+                insights=km_stats['total_insights']
+            )
     except (IOError, OSError) as e:
         logger.warning("Could not load knowledge memory on startup: %s", e)
         print(f"   Knowledge:   ✗ Not initialized (I/O error)")

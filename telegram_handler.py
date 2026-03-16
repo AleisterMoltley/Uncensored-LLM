@@ -6,7 +6,6 @@ Includes rate limiting to avoid Telegram API bans.
 """
 
 import json
-import logging
 import threading
 import time
 import re
@@ -16,10 +15,11 @@ from pathlib import Path
 from typing import Optional, Dict, List, Any, Callable, TypedDict, Tuple
 
 from utils import PersistentStorage
+from logging_config import get_logger
 
 
-# Logger for Telegram handler
-logger = logging.getLogger("llm_servant.telegram")
+# Logger for Telegram handler with file rotation
+logger = get_logger("telegram")
 
 
 class RateLimitConfig(TypedDict, total=False):
