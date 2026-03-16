@@ -96,7 +96,7 @@ class TabooManager:
         Returns:
             The created taboo item
         """
-        taboo_id = hashlib.md5(f"{description}{datetime.now().isoformat()}".encode()).hexdigest()[:12]
+        taboo_id = str(uuid.uuid4())[:12]  # Use UUID for guaranteed uniqueness
         taboo_item = {
             "id": taboo_id,
             "description": description,
