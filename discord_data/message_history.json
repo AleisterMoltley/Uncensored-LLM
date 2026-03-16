@@ -1,0 +1,15 @@
+[
+  {
+    "message_id": 1,
+    "channel_id": 67890,
+    "guild_id": 11111,
+    "user_id": 12345,
+    "username": "testuser",
+    "display_name": "Alice",
+    "text": "Hello everyone!",
+    "is_dm": false,
+    "processed_at": "2026-03-16T04:38:35.338854+00:00",
+    "should_respond": false,
+    "replied": false
+  }
+]
