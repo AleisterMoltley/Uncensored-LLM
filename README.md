@@ -1051,11 +1051,11 @@ ollama ps
    ollama pull dolphin-llama3:8b-q4_K_M
    ```
 
-3. **Reduce RAG settings:**
+3. **Reduce RAG settings** in `config.json` (fewer document chunks, shorter history):
    ```json
    {
-       "top_k": 2,      // Fewer document chunks
-       "max_memory_messages": 2  // Shorter history
+       "top_k": 2,
+       "max_memory_messages": 2
    }
    ```
 
