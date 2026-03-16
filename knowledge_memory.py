@@ -4,12 +4,12 @@ Stores learned knowledge from PDFs to shape bot personality.
 Uses compression to keep memory size bounded even after many PDFs.
 """
 
-import json
 import hashlib
-import gzip
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional, Any
+
+from utils import PersistentStorage
 
 # Default configuration
 DEFAULT_MAX_MEMORY_SIZE_MB = 10  # Maximum memory file size in MB
@@ -51,7 +51,7 @@ class KnowledgeMemory:
         self.summary_threshold = self.config.get("summary_threshold", DEFAULT_SUMMARY_THRESHOLD)
         
         self.memory_file = self.memory_dir / "knowledge_memory.json.gz"
-        self.memory: Dict[str, Any] = {
+        self._default_memory: Dict[str, Any] = {
             "version": "1.0",
             "created": datetime.now().isoformat(),
             "updated": datetime.now().isoformat(),
@@ -65,43 +65,38 @@ class KnowledgeMemory:
             "arguments": [],  # Arguments and counter-arguments learned
             "source_hashes": []  # Track which PDFs have been processed
         }
+        self.memory: Dict[str, Any] = dict(self._default_memory)
+        
+        # Initialize persistent storage with compression callback
+        self._storage = PersistentStorage(
+            self.memory_file,
+            max_size_mb=self.max_size_mb,
+            on_size_exceeded=self._compress_memory_callback
+        )
         self._load()
+    
+    def _compress_memory_callback(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Callback for PersistentStorage when size limit is exceeded.
+        Compresses the memory data and returns the compressed version.
+        """
+        # Update local memory, compress it, and return
+        self.memory = data
+        self._compress_memory()
+        return self.memory
     
     def _load(self):
         """Load memory from compressed file."""
-        if self.memory_file.exists():
-            try:
-                with gzip.open(self.memory_file, 'rt', encoding='utf-8') as f:
-                    loaded = json.load(f)
-                    # Merge with defaults to handle version upgrades
-                    for key in self.memory:
-                        if key in loaded:
-                            self.memory[key] = loaded[key]
-            except (json.JSONDecodeError, IOError, gzip.BadGzipFile) as e:
-                print(f"⚠️ Could not load knowledge memory: {e}")
+        loaded = self._storage.load(default={})
+        # Merge with defaults to handle version upgrades
+        for key in self._default_memory:
+            if key in loaded:
+                self.memory[key] = loaded[key]
     
     def _save(self):
         """Save memory to compressed file with size check."""
         self.memory["updated"] = datetime.now().isoformat()
-        
-        # Serialize to JSON
-        json_data = json.dumps(self.memory, ensure_ascii=False, indent=None)
-        
-        # Check size before compression
-        size_bytes = len(json_data.encode('utf-8'))
-        size_mb = size_bytes / (1024 * 1024)
-        
-        # If too large, trigger compression
-        if size_mb > self.max_size_mb:
-            self._compress_memory()
-            json_data = json.dumps(self.memory, ensure_ascii=False, indent=None)
-        
-        # Save compressed
-        try:
-            with gzip.open(self.memory_file, 'wt', encoding='utf-8') as f:
-                f.write(json_data)
-        except IOError as e:
-            print(f"⚠️ Could not save knowledge memory: {e}")
+        self._storage.save(self.memory)
     
     def _compress_memory(self):
         """

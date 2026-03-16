@@ -3,17 +3,18 @@ Twitter Integration Handler for LocalLLM
 Scans Twitter for tweets matching assigned tasks and responds using the LLM.
 """
 
-import json
 import threading
 import time
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Optional, Dict, List, Any, Callable
 
+from utils import PersistentStorage
+
 # Twitter history persistence
 TWITTER_DIR = Path(__file__).parent / "twitter_data"
 TWITTER_DIR.mkdir(exist_ok=True)
-HISTORY_FILE = TWITTER_DIR / "tweet_history.json"
+HISTORY_FILE = TWITTER_DIR / "tweet_history.json.gz"
 
 
 class TwitterHandler:
@@ -44,27 +45,19 @@ class TwitterHandler:
         self._scanner_thread: Optional[threading.Thread] = None
         self._scanner_running = False
         self._history: List[Dict] = []
+        
+        # Initialize persistent storage for history
+        self._storage = PersistentStorage(HISTORY_FILE)
         self._load_history()
         
     def _load_history(self):
         """Load tweet history from disk."""
-        try:
-            if HISTORY_FILE.exists():
-                with open(HISTORY_FILE) as f:
-                    self._history = json.load(f)
-        except (json.JSONDecodeError, IOError) as e:
-            # History file may be corrupted or unreadable, start fresh
-            print(f"⚠️ Could not load Twitter history: {e}")
-            self._history = []
+        loaded = self._storage.load(default={"history": []})
+        self._history = loaded.get("history", [])
     
     def _save_history(self):
         """Save tweet history to disk."""
-        try:
-            with open(HISTORY_FILE, "w") as f:
-                json.dump(self._history, f, indent=2, ensure_ascii=False)
-        except IOError as e:
-            # Log the error but don't fail the operation
-            print(f"⚠️ Could not save Twitter history: {e}")
+        self._storage.save({"history": self._history})
     
     def configure(self, twitter_config: Dict):
         """

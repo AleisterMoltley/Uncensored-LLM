@@ -5,13 +5,14 @@ Maintains persistent user memory for personalized interactions.
 """
 
 import json
-import gzip
 import threading
 import time
 import re
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional, Dict, List, Any, Callable
+
+from utils import PersistentStorage
 
 
 # Telegram data persistence
@@ -39,34 +40,31 @@ class UserMemory:
         self.memory_file = memory_file
         self.max_size_mb = max_size_mb
         self.memories: Dict[str, Dict[str, Any]] = {}
+        
+        # Initialize persistent storage with compression callback
+        self._storage = PersistentStorage(
+            memory_file,
+            max_size_mb=max_size_mb,
+            on_size_exceeded=self._compress_callback
+        )
         self._load()
+    
+    def _compress_callback(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Callback for PersistentStorage when size limit is exceeded.
+        Compresses old entries and returns the compressed data.
+        """
+        self.memories = data
+        self._compress_old_entries()
+        return self.memories
     
     def _load(self):
         """Load memories from compressed file."""
-        if self.memory_file.exists():
-            try:
-                with gzip.open(self.memory_file, 'rt', encoding='utf-8') as f:
-                    self.memories = json.load(f)
-            except (json.JSONDecodeError, IOError, gzip.BadGzipFile) as e:
-                print(f"⚠️ Could not load user memories: {e}")
-                self.memories = {}
+        self.memories = self._storage.load(default={})
     
     def _save(self):
         """Save memories to compressed file with size check."""
-        json_data = json.dumps(self.memories, ensure_ascii=False, indent=None)
-        size_bytes = len(json_data.encode('utf-8'))
-        size_mb = size_bytes / (1024 * 1024)
-        
-        # If too large, compress old entries
-        if size_mb > self.max_size_mb:
-            self._compress_old_entries()
-            json_data = json.dumps(self.memories, ensure_ascii=False, indent=None)
-        
-        try:
-            with gzip.open(self.memory_file, 'wt', encoding='utf-8') as f:
-                f.write(json_data)
-        except IOError as e:
-            print(f"⚠️ Could not save user memories: {e}")
+        self._storage.save(self.memories)
     
     def _compress_old_entries(self):
         """Remove oldest conversation entries to reduce file size."""
