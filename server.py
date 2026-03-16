@@ -11,13 +11,29 @@ import os
 import json
 import uuid
 import hashlib
+import logging
 import subprocess
+import traceback
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, Any, Optional, List, Callable, TYPE_CHECKING
 
+import requests
 from flask import Flask, request, jsonify, send_from_directory, Response, stream_with_context
 from flask_cors import CORS
+
+# --- Logging configuration ---
+# Debug mode from environment variable
+DEBUG_MODE = os.environ.get("LLM_SERVANT_DEBUG", "false").lower() in ("true", "1", "yes")
+LOG_LEVEL = logging.DEBUG if DEBUG_MODE else logging.INFO
+
+# Configure logging with detailed format for debug mode
+logging.basicConfig(
+    level=LOG_LEVEL,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    datefmt='%Y-%m-%d %H:%M:%S'
+)
+logger = logging.getLogger("llm_servant")
 
 if TYPE_CHECKING:
     from langchain_ollama import OllamaEmbeddings, OllamaLLM
@@ -38,6 +54,27 @@ os.environ.setdefault("OLLAMA_GPU_LAYERS", "35")        # Max layers on GPU
 os.environ.setdefault("OLLAMA_KV_CACHE_TYPE", "q8_0")   # Compressed KV cache
 os.environ.setdefault("OLLAMA_FLASH_ATTENTION", "1")     # Flash Attention
 os.environ.setdefault("OLLAMA_NUM_THREADS", str(os.cpu_count() or 4))
+
+
+def log_exception(e: Exception, context: str = "") -> None:
+    """
+    Log an exception with appropriate level and optional stack trace in debug mode.
+    
+    Args:
+        e: The exception to log
+        context: Additional context about where the exception occurred
+    """
+    error_msg = f"{context}: {e}" if context else str(e)
+    
+    if isinstance(e, (ValueError, KeyError, TypeError)):
+        logger.warning(error_msg)
+    elif isinstance(e, (IOError, OSError)):
+        logger.error(error_msg)
+    else:
+        logger.error(error_msg)
+    
+    if DEBUG_MODE:
+        logger.debug("Stack trace:\n%s", traceback.format_exc())
 
 
 # ============================================================
@@ -69,8 +106,15 @@ class TabooManager:
                 with open(self.taboo_file, 'r', encoding='utf-8') as f:
                     loaded = json.load(f)
                     self.taboos = loaded
-            except (json.JSONDecodeError, IOError) as e:
-                print(f"⚠️ Could not load taboos: {e}")
+                logger.debug("Taboos loaded successfully from %s", self.taboo_file)
+            except json.JSONDecodeError as e:
+                logger.warning("Could not parse taboos JSON file: %s", e)
+                if DEBUG_MODE:
+                    logger.debug("Stack trace:\n%s", traceback.format_exc())
+            except (IOError, OSError) as e:
+                logger.warning("Could not read taboos file: %s", e)
+                if DEBUG_MODE:
+                    logger.debug("Stack trace:\n%s", traceback.format_exc())
     
     def _save(self) -> None:
         """Save taboos to file."""
@@ -387,18 +431,26 @@ class LLMServantApp:
     def unload_unused_models(self) -> None:
         """Unload all models except the active one from RAM."""
         try:
-            import requests as req
-            resp = req.get("http://localhost:11434/api/tags", timeout=3)
+            resp = requests.get("http://localhost:11434/api/tags", timeout=3)
             if resp.ok:
                 models = resp.json().get("models", [])
                 active = self.config["model"]
                 for m in models:
                     name = m.get("name", "")
                     if name and name != active:
-                        req.post("http://localhost:11434/api/generate",
+                        requests.post("http://localhost:11434/api/generate",
                                  json={"model": name, "keep_alive": 0}, timeout=5)
-        except Exception:
-            pass
+                logger.debug("Unloaded unused models, keeping active: %s", active)
+        except requests.exceptions.Timeout:
+            logger.warning("Timeout while trying to unload unused models from Ollama")
+            if DEBUG_MODE:
+                logger.debug("Stack trace:\n%s", traceback.format_exc())
+        except requests.exceptions.ConnectionError:
+            logger.debug("Could not connect to Ollama server for model unloading")
+        except (requests.exceptions.RequestException, KeyError, json.JSONDecodeError) as e:
+            logger.warning("Error unloading unused models: %s", e)
+            if DEBUG_MODE:
+                logger.debug("Stack trace:\n%s", traceback.format_exc())
     
     def get_active_personality(self) -> Dict[str, Any]:
         """Get the active personality configuration."""
@@ -459,8 +511,14 @@ class LLMServantApp:
                 prompt_parts.append(
                     f"<|im_start|>system\n{taboo_context}<|im_end|>"
                 )
-        except Exception:
-            pass
+        except (IOError, OSError, json.JSONDecodeError) as e:
+            logger.warning("Could not load taboos for prompt: %s", e)
+            if DEBUG_MODE:
+                logger.debug("Stack trace:\n%s", traceback.format_exc())
+        except AttributeError as e:
+            logger.warning("TabooManager not properly initialized: %s", e)
+            if DEBUG_MODE:
+                logger.debug("Stack trace:\n%s", traceback.format_exc())
         
         # Add learned knowledge for personality shaping
         if use_knowledge:
@@ -472,8 +530,14 @@ class LLMServantApp:
                         f"<|im_start|>system\n{knowledge_context}\n"
                         "Use this learned knowledge to reason rationally, compare arguments, and respond with human-like understanding.<|im_end|>"
                     )
-            except Exception:
-                pass
+            except (IOError, OSError, json.JSONDecodeError) as e:
+                logger.warning("Could not load knowledge memory for prompt: %s", e)
+                if DEBUG_MODE:
+                    logger.debug("Stack trace:\n%s", traceback.format_exc())
+            except (AttributeError, KeyError) as e:
+                logger.warning("KnowledgeMemory not properly initialized: %s", e)
+                if DEBUG_MODE:
+                    logger.debug("Stack trace:\n%s", traceback.format_exc())
         
         if doc_context:
             prompt_parts.append(f"<|im_start|>system\nDocuments:\n{doc_context}<|im_end|>")
@@ -809,12 +873,26 @@ def upload_pdf():
         })
         save_documents_index(docs)
 
+        logger.info("PDF uploaded and processed: %s", result["filename"])
         return jsonify({
             "success": True,
             "message": f"'{result['filename']}' processed: {result['pages']} pages, {result['chunks']} chunks.",
             **result
         })
+    except (IOError, OSError) as e:
+        logger.error("File I/O error processing PDF: %s", e)
+        if DEBUG_MODE:
+            logger.debug("Stack trace:\n%s", traceback.format_exc())
+        return jsonify({"error": f"File error: {str(e)}"}), 500
+    except ValueError as e:
+        logger.error("Value error processing PDF: %s", e)
+        if DEBUG_MODE:
+            logger.debug("Stack trace:\n%s", traceback.format_exc())
+        return jsonify({"error": f"Processing error: {str(e)}"}), 500
     except Exception as e:
+        logger.error("Unexpected error processing PDF: %s", e)
+        if DEBUG_MODE:
+            logger.debug("Stack trace:\n%s", traceback.format_exc())
         return jsonify({"error": f"Processing error: {str(e)}"}), 500
 
 
@@ -833,8 +911,22 @@ def delete_document(file_hash):
         vs = get_vectorstore()
         vs.delete([id for id, doc in vs.get().items() if doc.metadata.get("file_hash") == file_hash])
 
+        logger.info("Document deleted: %s", file_hash)
         return jsonify({"success": True})
+    except (IOError, OSError) as e:
+        logger.error("File I/O error deleting document: %s", e)
+        if DEBUG_MODE:
+            logger.debug("Stack trace:\n%s", traceback.format_exc())
+        return jsonify({"error": str(e)}), 500
+    except (KeyError, TypeError) as e:
+        logger.error("Data error deleting document: %s", e)
+        if DEBUG_MODE:
+            logger.debug("Stack trace:\n%s", traceback.format_exc())
+        return jsonify({"error": str(e)}), 500
     except Exception as e:
+        logger.error("Unexpected error deleting document: %s", e)
+        if DEBUG_MODE:
+            logger.debug("Stack trace:\n%s", traceback.format_exc())
         return jsonify({"error": str(e)}), 500
 
 
@@ -872,12 +964,26 @@ def chat():
         memory.add_message(conv_id, "user", query)
         memory.add_message(conv_id, "assistant", response)
 
+        logger.debug("Chat response generated for conv_id: %s", conv_id)
         return jsonify({
             "response": response,
             "sources": sources,
             "conv_id": conv_id
         })
+    except (KeyError, TypeError) as e:
+        logger.error("Data error in chat: %s", e)
+        if DEBUG_MODE:
+            logger.debug("Stack trace:\n%s", traceback.format_exc())
+        return jsonify({"error": str(e)}), 500
+    except requests.exceptions.RequestException as e:
+        logger.error("Network error communicating with LLM: %s", e)
+        if DEBUG_MODE:
+            logger.debug("Stack trace:\n%s", traceback.format_exc())
+        return jsonify({"error": f"LLM connection error: {str(e)}"}), 500
     except Exception as e:
+        logger.error("Unexpected error in chat: %s", e)
+        if DEBUG_MODE:
+            logger.debug("Stack trace:\n%s", traceback.format_exc())
         return jsonify({"error": str(e)}), 500
 
 
@@ -919,9 +1025,23 @@ def chat_stream():
             memory.add_message(conv_id, "user", query)
             memory.add_message(conv_id, "assistant", final_text)
 
+            logger.debug("Stream completed for conv_id: %s", conv_id)
             yield f"data: {json.dumps({'done': True, 'sources': sources, 'conv_id': conv_id})}\n\n"
 
+        except (KeyError, TypeError) as e:
+            logger.error("Data error in chat stream: %s", e)
+            if DEBUG_MODE:
+                logger.debug("Stack trace:\n%s", traceback.format_exc())
+            yield f"data: {json.dumps({'error': str(e)})}\n\n"
+        except requests.exceptions.RequestException as e:
+            logger.error("Network error in chat stream: %s", e)
+            if DEBUG_MODE:
+                logger.debug("Stack trace:\n%s", traceback.format_exc())
+            yield f"data: {json.dumps({'error': f'LLM connection error: {str(e)}'})}\n\n"
         except Exception as e:
+            logger.error("Unexpected error in chat stream: %s", e)
+            if DEBUG_MODE:
+                logger.debug("Stack trace:\n%s", traceback.format_exc())
             yield f"data: {json.dumps({'error': str(e)})}\n\n"
 
     return Response(stream_with_context(generate()),
@@ -978,8 +1098,16 @@ def health():
     try:
         result = subprocess.run(["ollama", "list"], capture_output=True, timeout=5)
         ollama_running = result.returncode == 0
-    except Exception:
-        pass
+    except subprocess.TimeoutExpired:
+        logger.warning("Timeout checking Ollama status")
+    except subprocess.SubprocessError as e:
+        logger.debug("Subprocess error checking Ollama: %s", e)
+    except FileNotFoundError:
+        logger.debug("Ollama command not found")
+    except OSError as e:
+        logger.warning("OS error checking Ollama: %s", e)
+        if DEBUG_MODE:
+            logger.debug("Stack trace:\n%s", traceback.format_exc())
 
     docs = get_documents_index()
     
@@ -995,8 +1123,14 @@ def health():
             "topics_count": stats.get("topics_count", 0),
             "memory_size_mb": stats.get("file_size_mb", 0)
         }
-    except Exception:
-        pass
+    except (IOError, OSError) as e:
+        logger.warning("Could not load knowledge memory stats: %s", e)
+        if DEBUG_MODE:
+            logger.debug("Stack trace:\n%s", traceback.format_exc())
+    except (KeyError, AttributeError) as e:
+        logger.warning("Error accessing knowledge memory stats: %s", e)
+        if DEBUG_MODE:
+            logger.debug("Stack trace:\n%s", traceback.format_exc())
     
     return jsonify({
         "status": "ok",
@@ -1027,8 +1161,32 @@ def execute_code():
         # Full access – no sandbox!
         exec_globals = {"__name__": "__exec__"}
         exec(code, exec_globals)
+        logger.info("Code executed successfully")
         return jsonify({"success": True, "output": "Executed (no output captured)"})
+    except SyntaxError as e:
+        logger.warning("Syntax error in executed code: %s", e)
+        if DEBUG_MODE:
+            logger.debug("Stack trace:\n%s", traceback.format_exc())
+        return jsonify({"success": False, "error": f"Syntax error: {str(e)}"})
+    except NameError as e:
+        logger.warning("Name error in executed code: %s", e)
+        if DEBUG_MODE:
+            logger.debug("Stack trace:\n%s", traceback.format_exc())
+        return jsonify({"success": False, "error": f"Name error: {str(e)}"})
+    except TypeError as e:
+        logger.warning("Type error in executed code: %s", e)
+        if DEBUG_MODE:
+            logger.debug("Stack trace:\n%s", traceback.format_exc())
+        return jsonify({"success": False, "error": f"Type error: {str(e)}"})
+    except ValueError as e:
+        logger.warning("Value error in executed code: %s", e)
+        if DEBUG_MODE:
+            logger.debug("Stack trace:\n%s", traceback.format_exc())
+        return jsonify({"success": False, "error": f"Value error: {str(e)}"})
     except Exception as e:
+        logger.error("Unexpected error executing code: %s", e)
+        if DEBUG_MODE:
+            logger.debug("Stack trace:\n%s", traceback.format_exc())
         return jsonify({"success": False, "error": str(e)})
 
 
@@ -1042,7 +1200,14 @@ def get_knowledge_stats():
     try:
         km = get_knowledge_memory()
         return jsonify(km.get_statistics())
+    except (IOError, OSError) as e:
+        log_exception(e, "Error reading knowledge memory")
+        return jsonify({"error": str(e)}), 500
+    except (KeyError, AttributeError) as e:
+        log_exception(e, "Error accessing knowledge memory data")
+        return jsonify({"error": str(e)}), 500
     except Exception as e:
+        log_exception(e, "Unexpected error getting knowledge stats")
         return jsonify({"error": str(e)}), 500
 
 
@@ -1063,7 +1228,14 @@ def get_relevant_knowledge():
             max_arguments=data.get("max_arguments", 5)
         )
         return jsonify(knowledge)
+    except ValueError as e:
+        log_exception(e, "Invalid query for knowledge search")
+        return jsonify({"error": str(e)}), 400
+    except (IOError, OSError) as e:
+        log_exception(e, "Error reading knowledge memory")
+        return jsonify({"error": str(e)}), 500
     except Exception as e:
+        log_exception(e, "Unexpected error getting relevant knowledge")
         return jsonify({"error": str(e)}), 500
 
 
@@ -1081,8 +1253,16 @@ def add_core_belief():
     try:
         km = get_knowledge_memory()
         km.add_core_belief(belief, source, weight)
+        logger.info("Core belief added from source: %s", source)
         return jsonify({"success": True, "message": "Core belief added"})
+    except ValueError as e:
+        log_exception(e, "Invalid belief data")
+        return jsonify({"error": str(e)}), 400
+    except (IOError, OSError) as e:
+        log_exception(e, "Error saving core belief")
+        return jsonify({"error": str(e)}), 500
     except Exception as e:
+        log_exception(e, "Unexpected error adding core belief")
         return jsonify({"error": str(e)}), 500
 
 
@@ -1098,7 +1278,14 @@ def compare_arguments():
         km = get_knowledge_memory()
         arguments = km.compare_arguments(topic)
         return jsonify({"topic": topic, "arguments": arguments})
+    except (KeyError, ValueError) as e:
+        log_exception(e, "Error comparing arguments")
+        return jsonify({"error": str(e)}), 400
+    except (IOError, OSError) as e:
+        log_exception(e, "Error reading knowledge memory")
+        return jsonify({"error": str(e)}), 500
     except Exception as e:
+        log_exception(e, "Unexpected error comparing arguments")
         return jsonify({"error": str(e)}), 500
 
 
@@ -1108,8 +1295,13 @@ def export_knowledge():
     try:
         km = get_knowledge_memory()
         data = km.export_knowledge()
+        logger.info("Knowledge memory exported")
         return jsonify(data)
+    except (IOError, OSError) as e:
+        log_exception(e, "Error exporting knowledge memory")
+        return jsonify({"error": str(e)}), 500
     except Exception as e:
+        log_exception(e, "Unexpected error exporting knowledge")
         return jsonify({"error": str(e)}), 500
 
 
@@ -1124,8 +1316,19 @@ def import_knowledge():
     try:
         km = get_knowledge_memory()
         km.import_knowledge(data)
+        logger.info("Knowledge memory imported")
         return jsonify({"success": True, "message": "Knowledge imported"})
+    except json.JSONDecodeError as e:
+        log_exception(e, "Invalid JSON data for import")
+        return jsonify({"error": f"Invalid JSON: {str(e)}"}), 400
+    except (KeyError, ValueError) as e:
+        log_exception(e, "Invalid knowledge data format")
+        return jsonify({"error": str(e)}), 400
+    except (IOError, OSError) as e:
+        log_exception(e, "Error saving imported knowledge")
+        return jsonify({"error": str(e)}), 500
     except Exception as e:
+        log_exception(e, "Unexpected error importing knowledge")
         return jsonify({"error": str(e)}), 500
 
 
@@ -1135,8 +1338,13 @@ def clear_knowledge():
     try:
         km = get_knowledge_memory()
         km.clear()
+        logger.info("Knowledge memory cleared")
         return jsonify({"success": True, "message": "Knowledge memory cleared"})
+    except (IOError, OSError) as e:
+        log_exception(e, "Error clearing knowledge memory")
+        return jsonify({"error": str(e)}), 500
     except Exception as e:
+        log_exception(e, "Unexpected error clearing knowledge")
         return jsonify({"error": str(e)}), 500
 
 
@@ -1167,7 +1375,11 @@ def get_personalities():
             "active_personality": active_id,
             "personalities": personality_list
         })
+    except (KeyError, TypeError) as e:
+        log_exception(e, "Error accessing personality configuration")
+        return jsonify({"error": str(e)}), 500
     except Exception as e:
+        log_exception(e, "Unexpected error getting personalities")
         return jsonify({"error": str(e)}), 500
 
 
@@ -1177,7 +1389,11 @@ def get_active_personality_api():
     try:
         personality = get_active_personality()
         return jsonify(personality)
+    except (KeyError, AttributeError) as e:
+        log_exception(e, "Error accessing active personality")
+        return jsonify({"error": str(e)}), 500
     except Exception as e:
+        log_exception(e, "Unexpected error getting active personality")
         return jsonify({"error": str(e)}), 500
 
 
@@ -1201,12 +1417,20 @@ def set_active_personality():
         # Save to config file
         app_instance.save_config()
         
+        logger.info("Personality switched to: %s", personality_id)
         return jsonify({
             "success": True,
             "active_personality": personality_id,
             "message": f"Personality switched to: {personalities[personality_id].get('name', personality_id)}"
         })
+    except (IOError, OSError) as e:
+        log_exception(e, "Error saving personality configuration")
+        return jsonify({"error": str(e)}), 500
+    except (KeyError, AttributeError) as e:
+        log_exception(e, "Error setting active personality")
+        return jsonify({"error": str(e)}), 500
     except Exception as e:
+        log_exception(e, "Unexpected error setting active personality")
         return jsonify({"error": str(e)}), 500
 
 
@@ -1252,11 +1476,19 @@ def update_personality(personality_id):
         # Save to config file
         app_instance.save_config()
         
+        logger.info("Personality '%s' updated", personality_id)
         return jsonify({
             "success": True,
             "message": f"Personality '{personality_id}' updated"
         })
+    except (IOError, OSError) as e:
+        log_exception(e, "Error saving personality configuration")
+        return jsonify({"error": str(e)}), 500
+    except (KeyError, TypeError) as e:
+        log_exception(e, "Error updating personality")
+        return jsonify({"error": str(e)}), 500
     except Exception as e:
+        log_exception(e, "Unexpected error updating personality")
         return jsonify({"error": str(e)}), 500
 
 
@@ -1270,7 +1502,14 @@ def twitter_status():
     try:
         handler = get_twitter_handler()
         return jsonify(handler.get_status())
+    except ImportError as e:
+        logger.debug("Tweepy not installed: %s", e)
+        return jsonify({"error": "tweepy not installed", "configured": False})
+    except (AttributeError, KeyError) as e:
+        log_exception(e, "Error accessing Twitter handler")
+        return jsonify({"error": str(e), "configured": False})
     except Exception as e:
+        log_exception(e, "Unexpected error getting Twitter status")
         return jsonify({"error": str(e), "configured": False})
 
 
@@ -1318,8 +1557,16 @@ def update_twitter_config():
         handler = get_twitter_handler()
         handler.configure(twitter_conf)
         status = handler.get_status()
+        logger.info("Twitter configuration updated")
         return jsonify({"success": True, "status": status})
+    except ImportError as e:
+        logger.warning("Tweepy not installed: %s", e)
+        return jsonify({"success": False, "error": "tweepy not installed"}), 500
+    except (IOError, OSError) as e:
+        log_exception(e, "Error saving Twitter configuration")
+        return jsonify({"success": False, "error": str(e)}), 500
     except Exception as e:
+        log_exception(e, "Unexpected error updating Twitter config")
         return jsonify({"success": False, "error": str(e)}), 500
 
 
@@ -1332,12 +1579,23 @@ def twitter_scan():
             return jsonify({"error": "Twitter API not configured"}), 400
         
         results = handler.scan_and_process()
+        logger.info("Twitter scan completed, processed %d tweets", len(results))
         return jsonify({
             "success": True,
             "tweets_processed": len(results),
             "results": results
         })
+    except ImportError as e:
+        logger.warning("Tweepy not installed: %s", e)
+        return jsonify({"error": "tweepy not installed"}), 500
+    except requests.exceptions.RequestException as e:
+        log_exception(e, "Network error during Twitter scan")
+        return jsonify({"error": f"Network error: {str(e)}"}), 500
+    except (KeyError, AttributeError) as e:
+        log_exception(e, "Error accessing Twitter data")
+        return jsonify({"error": str(e)}), 500
     except Exception as e:
+        log_exception(e, "Unexpected error during Twitter scan")
         return jsonify({"error": str(e)}), 500
 
 
@@ -1347,8 +1605,16 @@ def twitter_scanner_start():
     try:
         handler = get_twitter_handler()
         result = handler.start_scanner()
+        logger.info("Twitter scanner started")
         return jsonify(result)
+    except ImportError as e:
+        logger.warning("Tweepy not installed: %s", e)
+        return jsonify({"success": False, "error": "tweepy not installed"}), 500
+    except (AttributeError, RuntimeError) as e:
+        log_exception(e, "Error starting Twitter scanner")
+        return jsonify({"success": False, "error": str(e)}), 500
     except Exception as e:
+        log_exception(e, "Unexpected error starting Twitter scanner")
         return jsonify({"success": False, "error": str(e)}), 500
 
 
@@ -1358,8 +1624,13 @@ def twitter_scanner_stop():
     try:
         handler = get_twitter_handler()
         result = handler.stop_scanner()
+        logger.info("Twitter scanner stopped")
         return jsonify({"success": True, "message": "Scanner stopped"})
+    except (AttributeError, RuntimeError) as e:
+        log_exception(e, "Error stopping Twitter scanner")
+        return jsonify({"success": False, "error": str(e)}), 500
     except Exception as e:
+        log_exception(e, "Unexpected error stopping Twitter scanner")
         return jsonify({"success": False, "error": str(e)}), 500
 
 
@@ -1371,7 +1642,14 @@ def twitter_history():
         limit = request.args.get("limit", 50, type=int)
         history = handler.get_history(limit=limit)
         return jsonify(history)
+    except (IOError, OSError) as e:
+        log_exception(e, "Error reading Twitter history")
+        return jsonify({"error": str(e)}), 500
+    except (AttributeError, KeyError) as e:
+        log_exception(e, "Error accessing Twitter history data")
+        return jsonify({"error": str(e)}), 500
     except Exception as e:
+        log_exception(e, "Unexpected error getting Twitter history")
         return jsonify({"error": str(e)}), 500
 
 
@@ -1381,8 +1659,13 @@ def twitter_clear_history():
     try:
         handler = get_twitter_handler()
         result = handler.clear_history()
+        logger.info("Twitter history cleared")
         return jsonify(result)
+    except (IOError, OSError) as e:
+        log_exception(e, "Error clearing Twitter history")
+        return jsonify({"error": str(e)}), 500
     except Exception as e:
+        log_exception(e, "Unexpected error clearing Twitter history")
         return jsonify({"error": str(e)}), 500
 
 
@@ -1399,8 +1682,19 @@ def twitter_reply():
     try:
         handler = get_twitter_handler()
         result = handler.manual_reply(tweet_id, response_text)
+        logger.info("Manual reply sent to tweet: %s", tweet_id)
         return jsonify(result)
+    except ImportError as e:
+        logger.warning("Tweepy not installed: %s", e)
+        return jsonify({"error": "tweepy not installed"}), 500
+    except requests.exceptions.RequestException as e:
+        log_exception(e, "Network error sending Twitter reply")
+        return jsonify({"error": f"Network error: {str(e)}"}), 500
+    except ValueError as e:
+        log_exception(e, "Invalid tweet data")
+        return jsonify({"error": str(e)}), 400
     except Exception as e:
+        log_exception(e, "Unexpected error sending Twitter reply")
         return jsonify({"error": str(e)}), 500
 
 
@@ -1419,7 +1713,17 @@ def twitter_search():
             "tweets": tweets,
             "count": len(tweets)
         })
+    except ImportError as e:
+        logger.warning("Tweepy not installed: %s", e)
+        return jsonify({"error": "tweepy not installed"}), 500
+    except requests.exceptions.RequestException as e:
+        log_exception(e, "Network error searching tweets")
+        return jsonify({"error": f"Network error: {str(e)}"}), 500
+    except ValueError as e:
+        log_exception(e, "Invalid search parameters")
+        return jsonify({"error": str(e)}), 400
     except Exception as e:
+        log_exception(e, "Unexpected error searching tweets")
         return jsonify({"error": str(e)}), 500
 
 
@@ -1433,7 +1737,14 @@ def telegram_status():
     try:
         handler = get_telegram_handler()
         return jsonify(handler.get_status())
+    except ImportError as e:
+        logger.debug("Telegram library not installed: %s", e)
+        return jsonify({"error": "python-telegram-bot not installed", "configured": False})
+    except (AttributeError, KeyError) as e:
+        log_exception(e, "Error accessing Telegram handler")
+        return jsonify({"error": str(e), "configured": False})
     except Exception as e:
+        log_exception(e, "Unexpected error getting Telegram status")
         return jsonify({"error": str(e), "configured": False})
 
 
@@ -1476,8 +1787,16 @@ def update_telegram_config():
         handler = get_telegram_handler()
         handler.configure(telegram_conf)
         status = handler.get_status()
+        logger.info("Telegram configuration updated")
         return jsonify({"success": True, "status": status})
+    except ImportError as e:
+        logger.warning("Telegram library not installed: %s", e)
+        return jsonify({"success": False, "error": "python-telegram-bot not installed"}), 500
+    except (IOError, OSError) as e:
+        log_exception(e, "Error saving Telegram configuration")
+        return jsonify({"success": False, "error": str(e)}), 500
     except Exception as e:
+        log_exception(e, "Unexpected error updating Telegram config")
         return jsonify({"success": False, "error": str(e)}), 500
 
 
@@ -1490,8 +1809,16 @@ def telegram_start():
             return jsonify({"error": "Telegram bot not configured"}), 400
         
         result = handler.start_bot()
+        logger.info("Telegram bot started")
         return jsonify(result)
+    except ImportError as e:
+        logger.warning("Telegram library not installed: %s", e)
+        return jsonify({"success": False, "error": "python-telegram-bot not installed"}), 500
+    except (AttributeError, RuntimeError) as e:
+        log_exception(e, "Error starting Telegram bot")
+        return jsonify({"success": False, "error": str(e)}), 500
     except Exception as e:
+        log_exception(e, "Unexpected error starting Telegram bot")
         return jsonify({"success": False, "error": str(e)}), 500
 
 
@@ -1501,8 +1828,13 @@ def telegram_stop():
     try:
         handler = get_telegram_handler()
         result = handler.stop_bot()
+        logger.info("Telegram bot stopped")
         return jsonify(result)
+    except (AttributeError, RuntimeError) as e:
+        log_exception(e, "Error stopping Telegram bot")
+        return jsonify({"success": False, "error": str(e)}), 500
     except Exception as e:
+        log_exception(e, "Unexpected error stopping Telegram bot")
         return jsonify({"success": False, "error": str(e)}), 500
 
 
@@ -1514,7 +1846,14 @@ def telegram_history():
         limit = request.args.get("limit", 50, type=int)
         history = handler.get_history(limit=limit)
         return jsonify(history)
+    except (IOError, OSError) as e:
+        log_exception(e, "Error reading Telegram history")
+        return jsonify({"error": str(e)}), 500
+    except (AttributeError, KeyError) as e:
+        log_exception(e, "Error accessing Telegram history data")
+        return jsonify({"error": str(e)}), 500
     except Exception as e:
+        log_exception(e, "Unexpected error getting Telegram history")
         return jsonify({"error": str(e)}), 500
 
 
@@ -1524,8 +1863,13 @@ def telegram_clear_history():
     try:
         handler = get_telegram_handler()
         result = handler.clear_history()
+        logger.info("Telegram history cleared")
         return jsonify(result)
+    except (IOError, OSError) as e:
+        log_exception(e, "Error clearing Telegram history")
+        return jsonify({"error": str(e)}), 500
     except Exception as e:
+        log_exception(e, "Unexpected error clearing Telegram history")
         return jsonify({"error": str(e)}), 500
 
 
@@ -1537,7 +1881,14 @@ def telegram_get_memories():
         limit = request.args.get("limit", 50, type=int)
         memories = handler.get_user_memories(limit=limit)
         return jsonify(memories)
+    except (IOError, OSError) as e:
+        log_exception(e, "Error reading Telegram memories")
+        return jsonify({"error": str(e)}), 500
+    except (AttributeError, KeyError) as e:
+        log_exception(e, "Error accessing Telegram memories")
+        return jsonify({"error": str(e)}), 500
     except Exception as e:
+        log_exception(e, "Unexpected error getting Telegram memories")
         return jsonify({"error": str(e)}), 500
 
 
@@ -1548,7 +1899,14 @@ def telegram_get_user_memory(user_id, chat_id):
         handler = get_telegram_handler()
         memory = handler.get_user_memory_detail(user_id, chat_id)
         return jsonify(memory)
+    except (IOError, OSError) as e:
+        log_exception(e, "Error reading user memory")
+        return jsonify({"error": str(e)}), 500
+    except (KeyError, AttributeError) as e:
+        log_exception(e, "Error accessing user memory data")
+        return jsonify({"error": str(e)}), 500
     except Exception as e:
+        log_exception(e, "Unexpected error getting user memory")
         return jsonify({"error": str(e)}), 500
 
 
@@ -1558,8 +1916,13 @@ def telegram_clear_user_memory(user_id, chat_id):
     try:
         handler = get_telegram_handler()
         result = handler.clear_user_memory(user_id, chat_id)
+        logger.info("Cleared memory for user %d in chat %d", user_id, chat_id)
         return jsonify(result)
+    except (IOError, OSError) as e:
+        log_exception(e, "Error clearing user memory")
+        return jsonify({"error": str(e)}), 500
     except Exception as e:
+        log_exception(e, "Unexpected error clearing user memory")
         return jsonify({"error": str(e)}), 500
 
 
@@ -1569,8 +1932,13 @@ def telegram_clear_all_memories():
     try:
         handler = get_telegram_handler()
         result = handler.clear_all_memories()
+        logger.info("All Telegram user memories cleared")
         return jsonify(result)
+    except (IOError, OSError) as e:
+        log_exception(e, "Error clearing all memories")
+        return jsonify({"error": str(e)}), 500
     except Exception as e:
+        log_exception(e, "Unexpected error clearing all memories")
         return jsonify({"error": str(e)}), 500
 
 
@@ -1586,8 +1954,16 @@ def telegram_add_user_fact(user_id, chat_id):
     try:
         handler = get_telegram_handler()
         result = handler.add_user_fact(user_id, chat_id, fact)
+        logger.info("Added fact for user %d in chat %d", user_id, chat_id)
         return jsonify(result)
+    except ValueError as e:
+        log_exception(e, "Invalid fact data")
+        return jsonify({"error": str(e)}), 400
+    except (IOError, OSError) as e:
+        log_exception(e, "Error saving user fact")
+        return jsonify({"error": str(e)}), 500
     except Exception as e:
+        log_exception(e, "Unexpected error adding user fact")
         return jsonify({"error": str(e)}), 500
 
 
@@ -1598,7 +1974,14 @@ def telegram_memory_stats():
         handler = get_telegram_handler()
         stats = handler.user_memory.get_statistics()
         return jsonify(stats)
+    except (IOError, OSError) as e:
+        log_exception(e, "Error reading memory statistics")
+        return jsonify({"error": str(e)}), 500
+    except (AttributeError, KeyError) as e:
+        log_exception(e, "Error accessing memory statistics")
+        return jsonify({"error": str(e)}), 500
     except Exception as e:
+        log_exception(e, "Unexpected error getting memory statistics")
         return jsonify({"error": str(e)}), 500
 
 
@@ -1618,7 +2001,14 @@ def get_taboos():
             "taboos": taboos,
             "statistics": stats
         })
+    except (IOError, OSError) as e:
+        log_exception(e, "Error reading taboos")
+        return jsonify({"error": str(e)}), 500
+    except (KeyError, AttributeError) as e:
+        log_exception(e, "Error accessing taboo data")
+        return jsonify({"error": str(e)}), 500
     except Exception as e:
+        log_exception(e, "Unexpected error getting taboos")
         return jsonify({"error": str(e)}), 500
 
 
@@ -1635,12 +2025,20 @@ def add_taboo():
     try:
         tm = get_taboo_manager()
         taboo = tm.add_taboo(description, category)
+        logger.info("Taboo added: %s", description[:50])
         return jsonify({
             "success": True,
             "taboo": taboo,
             "message": f"Taboo added: {description}"
         })
+    except ValueError as e:
+        log_exception(e, "Invalid taboo data")
+        return jsonify({"error": str(e)}), 400
+    except (IOError, OSError) as e:
+        log_exception(e, "Error saving taboo")
+        return jsonify({"error": str(e)}), 500
     except Exception as e:
+        log_exception(e, "Unexpected error adding taboo")
         return jsonify({"error": str(e)}), 500
 
 
@@ -1650,13 +2048,18 @@ def delete_taboo(taboo_id):
     try:
         tm = get_taboo_manager()
         if tm.remove_taboo(taboo_id):
+            logger.info("Taboo deleted: %s", taboo_id)
             return jsonify({
                 "success": True,
                 "message": "Taboo successfully deleted"
             })
         else:
             return jsonify({"error": "Taboo not found"}), 404
+    except (IOError, OSError) as e:
+        log_exception(e, "Error deleting taboo")
+        return jsonify({"error": str(e)}), 500
     except Exception as e:
+        log_exception(e, "Unexpected error deleting taboo")
         return jsonify({"error": str(e)}), 500
 
 
@@ -1666,13 +2069,18 @@ def toggle_taboo(taboo_id):
     try:
         tm = get_taboo_manager()
         if tm.toggle_taboo(taboo_id):
+            logger.info("Taboo toggled: %s", taboo_id)
             return jsonify({
                 "success": True,
                 "message": "Taboo status changed"
             })
         else:
             return jsonify({"error": "Taboo not found"}), 404
+    except (IOError, OSError) as e:
+        log_exception(e, "Error toggling taboo")
+        return jsonify({"error": str(e)}), 500
     except Exception as e:
+        log_exception(e, "Unexpected error toggling taboo")
         return jsonify({"error": str(e)}), 500
 
 
@@ -1682,11 +2090,16 @@ def clear_all_taboos():
     try:
         tm = get_taboo_manager()
         tm.clear_all()
+        logger.info("All taboos cleared")
         return jsonify({
             "success": True,
             "message": "All taboos deleted"
         })
+    except (IOError, OSError) as e:
+        log_exception(e, "Error clearing taboos")
+        return jsonify({"error": str(e)}), 500
     except Exception as e:
+        log_exception(e, "Unexpected error clearing taboos")
         return jsonify({"error": str(e)}), 500
 
 
@@ -1696,12 +2109,20 @@ def get_taboo_stats():
     try:
         tm = get_taboo_manager()
         return jsonify(tm.get_statistics())
+    except (IOError, OSError) as e:
+        log_exception(e, "Error reading taboo statistics")
+        return jsonify({"error": str(e)}), 500
+    except (KeyError, AttributeError) as e:
+        log_exception(e, "Error accessing taboo statistics")
+        return jsonify({"error": str(e)}), 500
     except Exception as e:
+        log_exception(e, "Unexpected error getting taboo statistics")
         return jsonify({"error": str(e)}), 500
 
 
 # ============================================================
 if __name__ == "__main__":
+    logger.info("LOCAL LLM SERVANT v2 starting...")
     print(f"\n🏛️ LOCAL LLM SERVANT v2 starting...")
     print(f"   Model:       {CONFIG['model']}")
     print(f"   Context:     {CONFIG.get('num_ctx', 2048)} tokens")
@@ -1710,13 +2131,23 @@ if __name__ == "__main__":
     print(f"   URL:         http://{CONFIG['host']}:{CONFIG['port']}")
     print(f"   Dashboard:   http://{CONFIG['host']}:{CONFIG['port']}/dashboard")
     print(f"   Documents:   {len(get_documents_index())}")
+    print(f"   Debug mode:  {'✓ Enabled' if DEBUG_MODE else '✗ Disabled'}")
     
     # Knowledge memory status
     try:
         km = get_knowledge_memory()
         km_stats = km.get_statistics()
         print(f"   Knowledge:   {km_stats['total_pdfs_processed']} PDFs learned, {km_stats['total_insights']} insights, {km_stats['file_size_mb']:.2f} MB")
-    except Exception:
+    except (IOError, OSError) as e:
+        logger.warning("Could not load knowledge memory on startup: %s", e)
+        print(f"   Knowledge:   ✗ Not initialized (I/O error)")
+    except (KeyError, AttributeError) as e:
+        logger.warning("Knowledge memory data error on startup: %s", e)
+        print(f"   Knowledge:   ✗ Not initialized (data error)")
+    except Exception as e:
+        logger.warning("Unexpected error loading knowledge memory: %s", e)
+        if DEBUG_MODE:
+            logger.debug("Stack trace:\n%s", traceback.format_exc())
         print(f"   Knowledge:   ✗ Not initialized")
     
     twitter_configured = bool(CONFIG.get("twitter", {}).get("api_key"))
@@ -1729,6 +2160,7 @@ if __name__ == "__main__":
     # Unload unused models on startup
     unload_unused_models()
 
+    logger.info("Server starting on %s:%s", CONFIG["host"], CONFIG["port"])
     app.run(
         host=CONFIG["host"],
         port=CONFIG["port"],
