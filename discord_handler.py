@@ -776,19 +776,20 @@ class DiscordHandler:
         This is a simple heuristic-based extraction.
         """
         # Simple patterns to detect self-disclosed information
+        # Use restrictive patterns to avoid capturing excessive content (max 50 chars)
         patterns = [
             (r"(?:ich bin|i am|i'm)\s+(\w+)", "User might be: {}"),
-            (r"(?:ich arbeite|i work)\s+(?:als|as|at)\s+(.+?)(?:\.|$)", "Works as/at: {}"),
-            (r"(?:ich mag|i like|i love)\s+(.+?)(?:\.|$)", "Likes: {}"),
-            (r"(?:ich hasse|i hate|i don't like)\s+(.+?)(?:\.|$)", "Dislikes: {}"),
-            (r"(?:ich wohne|i live)\s+(?:in|at)\s+(.+?)(?:\.|$)", "Lives in: {}"),
+            (r"(?:ich arbeite|i work)\s+(?:als|as|at)\s+([\w\s]{1,50}?)(?:\.|,|$)", "Works as/at: {}"),
+            (r"(?:ich mag|i like|i love)\s+([\w\s]{1,50}?)(?:\.|,|$)", "Likes: {}"),
+            (r"(?:ich hasse|i hate|i don't like)\s+([\w\s]{1,50}?)(?:\.|,|$)", "Dislikes: {}"),
+            (r"(?:ich wohne|i live)\s+(?:in|at)\s+([\w\s]{1,50}?)(?:\.|,|$)", "Lives in: {}"),
             (r"(?:mein name ist|my name is)\s+(\w+)", "Name: {}"),
         ]
         
         for pattern, fact_template in patterns:
             match = re.search(pattern, user_message, re.IGNORECASE)
             if match:
-                fact = fact_template.format(match.group(1).strip())
+                fact = fact_template.format(match.group(1).strip()[:50])  # Limit to 50 chars
                 self.user_memory.add_fact(user_id, guild_id, fact)
     
     def start_bot(self):
@@ -891,14 +892,40 @@ class DiscordHandler:
                     max_retries = rate_limiter.max_retries
                     for attempt in range(max_retries):
                         try:
-                            # Split long messages if needed (Discord has 2000 char limit)
+                            # Split long messages on sentence boundaries (Discord has 2000 char limit)
                             response_text = result["generated_response"]
-                            if len(response_text) > 2000:
-                                response_text = response_text[:1997] + "..."
+                            messages_to_send = []
                             
-                            await message.reply(response_text)
-                            # Record successful send
-                            rate_limiter.record_send(channel_id)
+                            if len(response_text) <= 2000:
+                                messages_to_send.append(response_text)
+                            else:
+                                # Split on sentence boundaries
+                                current_chunk = ""
+                                sentences = response_text.replace(". ", ".|").replace("! ", "!|").replace("? ", "?|").split("|")
+                                
+                                for sentence in sentences:
+                                    if len(current_chunk) + len(sentence) + 1 <= 2000:
+                                        current_chunk += (" " if current_chunk else "") + sentence
+                                    else:
+                                        if current_chunk:
+                                            messages_to_send.append(current_chunk)
+                                        # Handle sentences longer than 2000 chars by truncating
+                                        if len(sentence) > 2000:
+                                            current_chunk = sentence[:1997] + "..."
+                                        else:
+                                            current_chunk = sentence
+                                
+                                if current_chunk:
+                                    messages_to_send.append(current_chunk)
+                            
+                            # Send all message chunks
+                            for i, msg_text in enumerate(messages_to_send):
+                                if i == 0:
+                                    await message.reply(msg_text)
+                                else:
+                                    await message.channel.send(msg_text)
+                                rate_limiter.record_send(channel_id)
+                            
                             # Update history to mark as replied
                             for entry in handler._history:
                                 if entry.get("message_id") == message.id:

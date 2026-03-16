@@ -923,7 +923,9 @@ class LLMServantApp:
         
         return {
             "filename": filename,
-            "pages": 1,  # DOCX doesn't have page concept in the same way
+            # DOCX page count not extracted - would require python-docx library for accurate count
+            # Using 1 as placeholder since docx2txt extracts all text without page info
+            "pages": 1,
             "chunks": len(chunks),
             "file_hash": file_hash,
             "knowledge_extracted": knowledge_result
@@ -1274,7 +1276,17 @@ def upload_document():
 
 @app.route("/api/documents", methods=["GET"])
 def get_documents():
-    return jsonify(get_documents_index())
+    """Get list of documents with normalized structure (includes file_type for backwards compat)."""
+    docs = get_documents_index()
+    # Add file_type for legacy documents that don't have it (default to PDF)
+    for doc in docs:
+        if "file_type" not in doc:
+            filename = doc.get("filename", "").lower()
+            if filename.endswith(".docx"):
+                doc["file_type"] = "DOCX"
+            else:
+                doc["file_type"] = "PDF"
+    return jsonify(docs)
 
 
 @app.route("/api/documents/<file_hash>", methods=["DELETE"])
