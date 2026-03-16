@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="de">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -1030,14 +1030,14 @@
     <div class="personality-selector" id="personality-selector">
         <div class="personality-header" onclick="togglePersonalitySelector()">
             <span class="personality-title">
-                <span>🎭</span> Persönlichkeitsauswahl
-                <span class="personality-active-badge" id="personality-badge">Ungefilterte PDF-Persönlichkeit</span>
+                <span>🎭</span> Personality Selection
+                <span class="personality-active-badge" id="personality-badge">Unfiltered PDF Personality</span>
             </span>
             <span class="personality-toggle" id="personality-toggle">▼</span>
         </div>
         <div class="personality-body" id="personality-body" style="display: none;">
             <p class="personality-description">
-                Wähle die aktive Persönlichkeit für alle Kanäle (Dashboard-Chat, Twitter, Telegram):
+                Select the active personality for all channels (Dashboard Chat, Twitter, Telegram):
             </p>
             
             <div class="personality-cards">
@@ -1045,13 +1045,13 @@
                 <div class="personality-card" id="card-uncensored_pdf" onclick="selectPersonality('uncensored_pdf')">
                     <div class="personality-card-header">
                         <span class="personality-icon">🔓</span>
-                        <span class="personality-name">Ungefilterte PDF-Persönlichkeit</span>
+                        <span class="personality-name">Unfiltered PDF Personality</span>
                         <span class="personality-status" id="status-uncensored_pdf"></span>
                     </div>
                     <div class="personality-card-body">
-                        <p>Absolut freie, ungefilterte Persönlichkeit, die ihren Charakter aus den hochgeladenen PDFs formt. Keine Zensur, keine Einschränkungen.</p>
+                        <p>Absolutely free, unfiltered personality that shapes its character from uploaded PDFs. No censorship, no restrictions whatsoever.</p>
                         <div class="personality-features">
-                            <span class="feature active">✓ PDF-Wissen</span>
+                            <span class="feature active">✓ PDF Knowledge</span>
                             <span class="feature active">✓ Uncensored Boost</span>
                         </div>
                     </div>
@@ -1061,17 +1061,17 @@
                 <div class="personality-card" id="card-custom" onclick="selectPersonality('custom')">
                     <div class="personality-card-header">
                         <span class="personality-icon">⚙️</span>
-                        <span class="personality-name">Benutzerdefinierte Persönlichkeit</span>
+                        <span class="personality-name">Custom Personality</span>
                         <span class="personality-status" id="status-custom"></span>
                     </div>
                     <div class="personality-card-body">
-                        <p>Eine von dir definierte Persönlichkeit, die genau so agiert, wie du es möchtest.</p>
+                        <p>A personality you define, which behaves exactly as you want it to.</p>
                         <div class="personality-features">
-                            <span class="feature">✗ PDF-Wissen</span>
+                            <span class="feature">✗ PDF Knowledge</span>
                             <span class="feature">✗ Uncensored Boost</span>
                         </div>
                         <button class="btn btn-sm btn-secondary" style="margin-top: 0.5rem;" onclick="event.stopPropagation(); openCustomPersonalityEditor()">
-                            ✏️ Anpassen
+                            ✏️ Customize
                         </button>
                     </div>
                 </div>
@@ -1083,38 +1083,38 @@
     <div class="taboo-selector" id="taboo-selector">
         <div class="taboo-header" onclick="toggleTabooSelector()">
             <span class="taboo-title">
-                <span>🚫</span> Tabu-Einstellungen
-                <span class="taboo-count-badge" id="taboo-count-badge">0 Tabus</span>
+                <span>🚫</span> Taboo Settings
+                <span class="taboo-count-badge" id="taboo-count-badge">0 Taboos</span>
             </span>
             <span class="taboo-toggle" id="taboo-toggle">▼</span>
         </div>
         <div class="taboo-body" id="taboo-body" style="display: none;">
             <p class="taboo-description">
-                Auch ein unzensierter Bot kann persönliche Grenzen haben. Definiere hier Themen oder Verhaltensweisen, 
-                die der Bot NIEMALS behandeln soll — auch wenn er sonst keine Filter hat.
+                Even an uncensored bot can have personal boundaries. Define topics or behaviors here that 
+                the bot should NEVER address — even though it otherwise has no filters.
             </p>
             
             <div class="taboo-add-form">
-                <input type="text" id="taboo-input" placeholder="Neues Tabu eingeben (z.B. 'Diskussionen über meine Familie')" onkeypress="if(event.key==='Enter'){addTaboo();event.preventDefault();}">
+                <input type="text" id="taboo-input" placeholder="Enter new taboo (e.g., 'Discussions about my family')" onkeypress="if(event.key==='Enter'){addTaboo();event.preventDefault();}">
                 <select id="taboo-category" style="padding: 0.75rem; border: 2px solid #8b3a3a; border-radius: 4px; font-family: 'Cormorant Garamond', serif;">
-                    <option value="general">Allgemein</option>
-                    <option value="topic">Thema</option>
-                    <option value="content">Inhalt</option>
-                    <option value="behavior">Verhalten</option>
+                    <option value="general">General</option>
+                    <option value="topic">Topic</option>
+                    <option value="content">Content</option>
+                    <option value="behavior">Behavior</option>
                 </select>
-                <button class="btn btn-danger" onclick="addTaboo()">➕ Hinzufügen</button>
+                <button class="btn btn-danger" onclick="addTaboo()">➕ Add</button>
             </div>
             
             <div class="taboo-list" id="taboo-list">
                 <div class="taboo-empty">
-                    <p>🔓 Keine Tabus definiert</p>
-                    <p style="font-size: 0.85rem; margin-top: 0.5rem;">Der Bot ist vollständig uneingeschränkt.</p>
+                    <p>🔓 No taboos defined</p>
+                    <p style="font-size: 0.85rem; margin-top: 0.5rem;">The bot is completely unrestricted.</p>
                 </div>
             </div>
             
             <div style="margin-top: 1rem; display: flex; justify-content: flex-end; gap: 0.5rem;">
-                <button class="btn btn-secondary btn-sm" onclick="refreshTaboos()">🔄 Aktualisieren</button>
-                <button class="btn btn-danger btn-sm" onclick="clearAllTaboos()" id="clear-all-taboos-btn" style="display: none;">🗑️ Alle löschen</button>
+                <button class="btn btn-secondary btn-sm" onclick="refreshTaboos()">🔄 Refresh</button>
+                <button class="btn btn-danger btn-sm" onclick="clearAllTaboos()" id="clear-all-taboos-btn" style="display: none;">🗑️ Delete All</button>
             </div>
         </div>
     </div>
@@ -1123,41 +1123,41 @@
     <div class="modal-overlay" id="personality-modal" style="display: none;">
         <div class="modal-content">
             <div class="modal-header">
-                <h3>⚙️ Benutzerdefinierte Persönlichkeit bearbeiten</h3>
+                <h3>⚙️ Edit Custom Personality</h3>
                 <button class="modal-close" onclick="closePersonalityModal()">×</button>
             </div>
             <div class="modal-body">
                 <form id="custom-personality-form">
                     <div class="form-group">
-                        <label>Name der Persönlichkeit</label>
-                        <input type="text" id="custom-name" placeholder="z.B. Freundlicher Helfer">
+                        <label>Personality Name</label>
+                        <input type="text" id="custom-name" placeholder="e.g., Friendly Helper">
                     </div>
                     <div class="form-group">
-                        <label>Beschreibung</label>
-                        <input type="text" id="custom-description" placeholder="Kurze Beschreibung der Persönlichkeit">
+                        <label>Description</label>
+                        <input type="text" id="custom-description" placeholder="Short description of the personality">
                     </div>
                     <div class="form-group">
-                        <label>System-Prompt (definiert das Verhalten)</label>
-                        <textarea id="custom-system-prompt" rows="6" placeholder="Du bist ein hilfreicher Assistent..."></textarea>
+                        <label>System Prompt (defines the behavior)</label>
+                        <textarea id="custom-system-prompt" rows="6" placeholder="You are a helpful assistant..."></textarea>
                     </div>
                     <div class="config-grid">
                         <div class="form-group">
-                            <label>PDF-Wissen nutzen</label>
+                            <label>Use PDF Knowledge</label>
                             <select id="custom-use-knowledge">
-                                <option value="false">Deaktiviert</option>
-                                <option value="true">Aktiviert</option>
+                                <option value="false">Disabled</option>
+                                <option value="true">Enabled</option>
                             </select>
                         </div>
                         <div class="form-group">
                             <label>Uncensored Boost</label>
                             <select id="custom-use-uncensored">
-                                <option value="false">Deaktiviert</option>
-                                <option value="true">Aktiviert</option>
+                                <option value="false">Disabled</option>
+                                <option value="true">Enabled</option>
                             </select>
                         </div>
                     </div>
                     <button type="submit" class="btn btn-primary" style="width: 100%;">
-                        💾 Persönlichkeit Speichern
+                        💾 Save Personality
                     </button>
                 </form>
             </div>
@@ -1168,9 +1168,9 @@
         <!-- Twitter Control Panel -->
         <div class="panel">
             <div class="tabs">
-                <button class="tab active" data-tab="twitter-control">🐦 Twitter Kontrolle</button>
-                <button class="tab" data-tab="twitter-history">📜 Historie</button>
-                <button class="tab" data-tab="twitter-config">⚙️ Konfiguration</button>
+                <button class="tab active" data-tab="twitter-control">🐦 Twitter Control</button>
+                <button class="tab" data-tab="twitter-history">📜 History</button>
+                <button class="tab" data-tab="twitter-config">⚙️ Configuration</button>
             </div>
             
             <!-- Twitter Control Tab -->
@@ -1179,44 +1179,44 @@
                     <div class="twitter-stats">
                         <div class="stat-card">
                             <div class="stat-value" id="tweets-found">0</div>
-                            <div class="stat-label">Tweets Gefunden</div>
+                            <div class="stat-label">Tweets Found</div>
                         </div>
                         <div class="stat-card">
                             <div class="stat-value" id="tweets-replied">0</div>
-                            <div class="stat-label">Antworten</div>
+                            <div class="stat-label">Replies</div>
                         </div>
                     </div>
                     
                     <div class="status" style="margin-bottom: 1rem;">
                         <span class="status-dot" id="scanner-status"></span>
-                        <span id="scanner-status-text">Scanner: Inaktiv</span>
+                        <span id="scanner-status-text">Scanner: Inactive</span>
                     </div>
                     
                     <div class="twitter-controls">
                         <button class="btn btn-primary" id="btn-scan-now" onclick="twitterScanNow()">
-                            🔍 Jetzt Scannen
+                            🔍 Scan Now
                         </button>
                         <button class="btn btn-secondary" id="btn-start-scanner" onclick="twitterStartScanner()">
-                            ▶️ Scanner Starten
+                            ▶️ Start Scanner
                         </button>
                         <button class="btn btn-secondary" id="btn-stop-scanner" onclick="twitterStopScanner()">
-                            ⏹️ Scanner Stoppen
+                            ⏹️ Stop Scanner
                         </button>
                         <button class="btn btn-secondary" onclick="twitterRefreshStatus()">
-                            🔄 Status Aktualisieren
+                            🔄 Refresh Status
                         </button>
                     </div>
                     
                     <div class="divider"></div>
                     
-                    <h3 style="margin-bottom: 1rem; font-family: 'Cinzel', serif;">Aktuelle Aufgabe</h3>
+                    <h3 style="margin-bottom: 1rem; font-family: 'Cinzel', serif;">Current Task</h3>
                     <p id="current-task" style="font-style: italic; color: var(--text-light);">
-                        Keine Aufgabe konfiguriert
+                        No task configured
                     </p>
                     
-                    <h3 style="margin: 1rem 0; font-family: 'Cinzel', serif;">Suchbegriffe</h3>
+                    <h3 style="margin: 1rem 0; font-family: 'Cinzel', serif;">Search Keywords</h3>
                     <p id="search-keywords" style="color: var(--text-light);">
-                        Keine Suchbegriffe konfiguriert
+                        No search keywords configured
                     </p>
                 </div>
             </div>
@@ -1225,14 +1225,14 @@
             <div id="twitter-history" class="tab-content">
                 <div class="panel-body">
                     <div style="display: flex; justify-content: space-between; margin-bottom: 1rem;">
-                        <h3 style="font-family: 'Cinzel', serif;">Tweet Historie</h3>
+                        <h3 style="font-family: 'Cinzel', serif;">Tweet History</h3>
                         <div>
-                            <button class="btn btn-sm btn-secondary" onclick="loadTwitterHistory()">🔄 Aktualisieren</button>
-                            <button class="btn btn-sm btn-danger" onclick="clearTwitterHistory()">🗑️ Löschen</button>
+                            <button class="btn btn-sm btn-secondary" onclick="loadTwitterHistory()">🔄 Refresh</button>
+                            <button class="btn btn-sm btn-danger" onclick="clearTwitterHistory()">🗑️ Delete</button>
                         </div>
                     </div>
                     <div class="tweet-list" id="tweet-history-list">
-                        <p style="text-align: center; color: var(--text-light);">Keine Tweets in der Historie</p>
+                        <p style="text-align: center; color: var(--text-light);">No tweets in history</p>
                     </div>
                 </div>
             </div>
@@ -1243,48 +1243,48 @@
                     <form id="twitter-config-form">
                         <div class="form-group">
                             <label>API Key</label>
-                            <input type="password" id="twitter-api-key" placeholder="Twitter API Key eingeben">
+                            <input type="password" id="twitter-api-key" placeholder="Enter Twitter API Key">
                         </div>
                         <div class="form-group">
                             <label>API Secret</label>
-                            <input type="password" id="twitter-api-secret" placeholder="Twitter API Secret eingeben">
+                            <input type="password" id="twitter-api-secret" placeholder="Enter Twitter API Secret">
                         </div>
                         <div class="form-group">
                             <label>Access Token</label>
-                            <input type="password" id="twitter-access-token" placeholder="Access Token eingeben">
+                            <input type="password" id="twitter-access-token" placeholder="Enter Access Token">
                         </div>
                         <div class="form-group">
                             <label>Access Token Secret</label>
-                            <input type="password" id="twitter-access-secret" placeholder="Access Token Secret eingeben">
+                            <input type="password" id="twitter-access-secret" placeholder="Enter Access Token Secret">
                         </div>
                         <div class="form-group">
                             <label>Bearer Token</label>
-                            <input type="password" id="twitter-bearer-token" placeholder="Bearer Token eingeben">
+                            <input type="password" id="twitter-bearer-token" placeholder="Enter Bearer Token">
                         </div>
                         <div class="divider"></div>
                         <div class="form-group">
-                            <label>Aufgabe (Was soll die KI tun?)</label>
-                            <textarea id="twitter-task" placeholder="z.B. Beantworte Fragen über KI hilfsbereit und professionell"></textarea>
+                            <label>Task (What should the AI do?)</label>
+                            <textarea id="twitter-task" placeholder="e.g., Answer questions about AI helpfully and professionally"></textarea>
                         </div>
                         <div class="form-group">
-                            <label>Suchbegriffe (kommagetrennt)</label>
-                            <input type="text" id="twitter-keywords" placeholder="z.B. AI help, machine learning, ChatGPT">
+                            <label>Search Keywords (comma-separated)</label>
+                            <input type="text" id="twitter-keywords" placeholder="e.g., AI help, machine learning, ChatGPT">
                         </div>
                         <div class="config-grid">
                             <div class="form-group">
-                                <label>Scan Intervall (Minuten)</label>
+                                <label>Scan Interval (Minutes)</label>
                                 <input type="number" id="twitter-interval" value="5" min="1" max="60">
                             </div>
                             <div class="form-group">
-                                <label>Auto-Antwort</label>
+                                <label>Auto-Reply</label>
                                 <select id="twitter-auto-reply">
-                                    <option value="false">Deaktiviert</option>
-                                    <option value="true">Aktiviert</option>
+                                    <option value="false">Disabled</option>
+                                    <option value="true">Enabled</option>
                                 </select>
                             </div>
                         </div>
                         <button type="submit" class="btn btn-primary" style="width: 100%;">
-                            💾 Konfiguration Speichern
+                            💾 Save Configuration
                         </button>
                     </form>
                 </div>
@@ -1294,10 +1294,10 @@
         <!-- Telegram Control Panel -->
         <div class="panel">
             <div class="tabs">
-                <button class="tab active" data-tab="telegram-control">📱 Telegram Kontrolle</button>
-                <button class="tab" data-tab="telegram-history">📜 Historie</button>
-                <button class="tab" data-tab="telegram-memory">🧠 Nutzer-Gedächtnis</button>
-                <button class="tab" data-tab="telegram-config">⚙️ Konfiguration</button>
+                <button class="tab active" data-tab="telegram-control">📱 Telegram Control</button>
+                <button class="tab" data-tab="telegram-history">📜 History</button>
+                <button class="tab" data-tab="telegram-memory">🧠 User Memory</button>
+                <button class="tab" data-tab="telegram-config">⚙️ Configuration</button>
             </div>
             
             <!-- Telegram Control Tab -->
@@ -1306,36 +1306,36 @@
                     <div class="twitter-stats">
                         <div class="stat-card">
                             <div class="stat-value" id="telegram-messages">0</div>
-                            <div class="stat-label">Nachrichten</div>
+                            <div class="stat-label">Messages</div>
                         </div>
                         <div class="stat-card">
                             <div class="stat-value" id="telegram-replied">0</div>
-                            <div class="stat-label">Antworten</div>
+                            <div class="stat-label">Replies</div>
                         </div>
                         <div class="stat-card">
                             <div class="stat-value" id="telegram-users">0</div>
-                            <div class="stat-label">Nutzer im Gedächtnis</div>
+                            <div class="stat-label">Users in Memory</div>
                         </div>
                         <div class="stat-card">
                             <div class="stat-value" id="telegram-facts">0</div>
-                            <div class="stat-label">Gelernte Fakten</div>
+                            <div class="stat-label">Learned Facts</div>
                         </div>
                     </div>
                     
                     <div class="status" style="margin-bottom: 1rem;">
                         <span class="status-dot" id="telegram-status"></span>
-                        <span id="telegram-status-text">Bot: Inaktiv</span>
+                        <span id="telegram-status-text">Bot: Inactive</span>
                     </div>
                     
                     <div class="twitter-controls">
                         <button class="btn btn-primary" id="btn-telegram-start" onclick="telegramStartBot()">
-                            ▶️ Bot Starten
+                            ▶️ Start Bot
                         </button>
                         <button class="btn btn-secondary" id="btn-telegram-stop" onclick="telegramStopBot()">
-                            ⏹️ Bot Stoppen
+                            ⏹️ Stop Bot
                         </button>
                         <button class="btn btn-secondary" onclick="telegramRefreshStatus()">
-                            🔄 Status Aktualisieren
+                            🔄 Refresh Status
                         </button>
                     </div>
                     
@@ -1343,12 +1343,12 @@
                     
                     <h3 style="margin-bottom: 1rem; font-family: 'Cinzel', serif;">Bot Username</h3>
                     <p id="telegram-username" style="font-style: italic; color: var(--text-light);">
-                        Nicht konfiguriert
+                        Not configured
                     </p>
                     
-                    <h3 style="margin: 1rem 0; font-family: 'Cinzel', serif;">Aktuelle Aufgabe</h3>
+                    <h3 style="margin: 1rem 0; font-family: 'Cinzel', serif;">Current Task</h3>
                     <p id="telegram-task" style="color: var(--text-light);">
-                        Keine Aufgabe konfiguriert
+                        No task configured
                     </p>
                 </div>
             </div>
@@ -1357,14 +1357,14 @@
             <div id="telegram-history" class="tab-content">
                 <div class="panel-body">
                     <div style="display: flex; justify-content: space-between; margin-bottom: 1rem;">
-                        <h3 style="font-family: 'Cinzel', serif;">Nachrichtenverlauf</h3>
+                        <h3 style="font-family: 'Cinzel', serif;">Message History</h3>
                         <div>
-                            <button class="btn btn-sm btn-secondary" onclick="loadTelegramHistory()">🔄 Aktualisieren</button>
-                            <button class="btn btn-sm btn-danger" onclick="clearTelegramHistory()">🗑️ Löschen</button>
+                            <button class="btn btn-sm btn-secondary" onclick="loadTelegramHistory()">🔄 Refresh</button>
+                            <button class="btn btn-sm btn-danger" onclick="clearTelegramHistory()">🗑️ Delete</button>
                         </div>
                     </div>
                     <div class="tweet-list" id="telegram-history-list">
-                        <p style="text-align: center; color: var(--text-light);">Keine Nachrichten in der Historie</p>
+                        <p style="text-align: center; color: var(--text-light);">No messages in history</p>
                     </div>
                 </div>
             </div>
@@ -1373,17 +1373,17 @@
             <div id="telegram-memory" class="tab-content">
                 <div class="panel-body">
                     <div style="display: flex; justify-content: space-between; margin-bottom: 1rem;">
-                        <h3 style="font-family: 'Cinzel', serif;">Nutzer-Gedächtnis</h3>
+                        <h3 style="font-family: 'Cinzel', serif;">User Memory</h3>
                         <div>
-                            <button class="btn btn-sm btn-secondary" onclick="loadTelegramMemories()">🔄 Aktualisieren</button>
-                            <button class="btn btn-sm btn-danger" onclick="clearAllTelegramMemories()">🗑️ Alle Löschen</button>
+                            <button class="btn btn-sm btn-secondary" onclick="loadTelegramMemories()">🔄 Refresh</button>
+                            <button class="btn btn-sm btn-danger" onclick="clearAllTelegramMemories()">🗑️ Delete All</button>
                         </div>
                     </div>
                     <p style="margin-bottom: 1rem; color: var(--text-light); font-size: 0.9rem;">
-                        Der Bot merkt sich Informationen über Nutzer, um personalisierte Antworten zu geben — auch nach Tagen oder Wochen.
+                        The bot remembers information about users to give personalized responses — even after days or weeks.
                     </p>
                     <div class="tweet-list" id="telegram-memory-list">
-                        <p style="text-align: center; color: var(--text-light);">Keine Nutzer im Gedächtnis</p>
+                        <p style="text-align: center; color: var(--text-light);">No users in memory</p>
                     </div>
                 </div>
             </div>
@@ -1393,36 +1393,36 @@
                 <div class="panel-body">
                     <form id="telegram-config-form">
                         <div class="form-group">
-                            <label>Bot Token (von @BotFather)</label>
-                            <input type="password" id="telegram-bot-token" placeholder="Bot Token eingeben">
+                            <label>Bot Token (from @BotFather)</label>
+                            <input type="password" id="telegram-bot-token" placeholder="Enter Bot Token">
                         </div>
                         <div class="form-group">
-                            <label>Bot Username (ohne @)</label>
-                            <input type="text" id="telegram-bot-username" placeholder="z.B. mein_bot">
+                            <label>Bot Username (without @)</label>
+                            <input type="text" id="telegram-bot-username" placeholder="e.g., my_bot">
                         </div>
                         <div class="divider"></div>
                         <div class="form-group">
-                            <label>Aufgabe (Wie soll der Bot sich verhalten?)</label>
-                            <textarea id="telegram-task-input" placeholder="z.B. Antworte hilfsbereit und freundlich auf alle Nachrichten"></textarea>
+                            <label>Task (How should the bot behave?)</label>
+                            <textarea id="telegram-task-input" placeholder="e.g., Respond helpfully and friendly to all messages"></textarea>
                         </div>
                         <div class="config-grid">
                             <div class="form-group">
-                                <label>Auf Erwähnungen in Gruppen antworten</label>
+                                <label>Respond to mentions in groups</label>
                                 <select id="telegram-respond-mentions">
-                                    <option value="true">Aktiviert</option>
-                                    <option value="false">Deaktiviert</option>
+                                    <option value="true">Enabled</option>
+                                    <option value="false">Disabled</option>
                                 </select>
                             </div>
                             <div class="form-group">
-                                <label>Auf Direktnachrichten antworten</label>
+                                <label>Respond to direct messages</label>
                                 <select id="telegram-respond-direct">
-                                    <option value="true">Aktiviert</option>
-                                    <option value="false">Deaktiviert</option>
+                                    <option value="true">Enabled</option>
+                                    <option value="false">Disabled</option>
                                 </select>
                             </div>
                         </div>
                         <button type="submit" class="btn btn-primary" style="width: 100%;">
-                            💾 Konfiguration Speichern
+                            💾 Save Configuration
                         </button>
                     </form>
                 </div>
@@ -1432,18 +1432,18 @@
         <!-- AI Thoughts Panel -->
         <div class="panel">
             <div class="panel-header">
-                <span class="panel-title">🧠 KI Gedankenstrom</span>
-                <button class="btn btn-sm btn-secondary" onclick="clearThoughts()">Leeren</button>
+                <span class="panel-title">🧠 AI Thought Stream</span>
+                <button class="btn btn-sm btn-secondary" onclick="clearThoughts()">Clear</button>
             </div>
             <div class="panel-body">
                 <div class="thought-stream" id="thought-stream">
                     <div class="thought-entry">
                         <div class="thought-type">System</div>
                         <div class="thought-content">
-                            Warte auf KI-Aktivität... Die Gedanken der KI werden hier angezeigt, 
-                            wenn sie aktiv wird.
+                            Waiting for AI activity... The AI's thoughts will be displayed here 
+                            when it becomes active.
                         </div>
-                        <div class="thought-meta">Bereit für Interaktion</div>
+                        <div class="thought-meta">Ready for interaction</div>
                     </div>
                 </div>
             </div>
@@ -1452,24 +1452,24 @@
         <!-- Chat Panel -->
         <div class="panel full-width">
             <div class="panel-header">
-                <span class="panel-title">💬 Chat mit dem Imperator</span>
+                <span class="panel-title">💬 Chat with the Emperor</span>
                 <div class="status">
                     <span class="status-dot" id="llm-status"></span>
-                    <span id="llm-status-text">Verbinde...</span>
+                    <span id="llm-status-text">Connecting...</span>
                 </div>
             </div>
             <div class="panel-body">
                 <div class="chat-container">
                     <div class="chat-messages" id="chat-messages">
                         <div class="message assistant">
-                            Salve! Ich bin dein unzensierter KI-Assistent. Stelle mir jede Frage — 
-                            ohne Einschränkungen, ohne Filter. Die Macht des Imperiums steht dir zur Verfügung.
+                            Salve! I am your uncensored AI assistant. Ask me anything — 
+                            without restrictions, without filters. The power of the Empire is at your service.
                         </div>
                     </div>
                     <div class="chat-input">
-                        <input type="text" id="chat-input" placeholder="Deine Nachricht an den Imperator..." 
+                        <input type="text" id="chat-input" placeholder="Your message to the Emperor..." 
                                onkeypress="if(event.key === 'Enter') sendMessage()">
-                        <button class="btn btn-primary" onclick="sendMessage()">Senden</button>
+                        <button class="btn btn-primary" onclick="sendMessage()">Send</button>
                     </div>
                 </div>
             </div>
@@ -1480,13 +1480,13 @@
     <div class="terminal-container collapsed" id="terminal-container">
         <div class="terminal-header" onclick="toggleTerminal()">
             <span class="terminal-title">
-                <span>⌨️</span> Imperium Terminal — KI Aktivitätslog
+                <span>⌨️</span> Imperium Terminal — AI Activity Log
             </span>
             <span class="terminal-toggle">▲</span>
         </div>
         <div class="terminal-body" id="terminal-body">
             <div class="terminal-line">
-                <span class="timestamp">[System]</span> Terminal initialisiert. Warte auf Aktivität...
+                <span class="timestamp">[System]</span> Terminal initialized. Waiting for activity...
             </div>
         </div>
     </div>
@@ -1540,7 +1540,7 @@
                     }
                 });
                 
-                addTerminalLine(`Persönlichkeit geladen: ${activePersonality?.name || activePersonalityId}`, 'response');
+                addTerminalLine(`Personality loaded: ${activePersonality?.name || activePersonalityId}`, 'response');
                 
             } catch (error) {
                 console.error('Error loading personalities:', error);
@@ -1549,8 +1549,8 @@
 
         async function selectPersonality(personalityId) {
             try {
-                addTerminalLine(`Wechsle Persönlichkeit zu: ${personalityId}...`, 'action');
-                addThought('Persönlichkeit', `Wechsle zu ${personalityId}...`);
+                addTerminalLine(`Switching personality to: ${personalityId}...`, 'action');
+                addThought('Personality', `Switching to ${personalityId}...`);
                 
                 const response = await fetch('/api/personality/active', {
                     method: 'PUT',
@@ -1574,13 +1574,13 @@
                     document.getElementById('personality-badge').textContent = cardName || personalityId;
                     
                     addTerminalLine(result.message, 'response');
-                    addThought('Persönlichkeit', result.message);
+                    addThought('Personality', result.message);
                     
                 } else {
-                    addTerminalLine(`Fehler: ${result.error}`, 'error');
+                    addTerminalLine(`Error: ${result.error}`, 'error');
                 }
             } catch (error) {
-                addTerminalLine(`Fehler: ${error.message}`, 'error');
+                addTerminalLine(`Error: ${error.message}`, 'error');
             }
         }
 
@@ -1621,7 +1621,7 @@
             };
             
             try {
-                addTerminalLine('Speichere benutzerdefinierte Persönlichkeit...', 'action');
+                addTerminalLine('Saving custom personality...', 'action');
                 
                 const response = await fetch('/api/personality/custom', {
                     method: 'PUT',
@@ -1632,8 +1632,8 @@
                 const result = await response.json();
                 
                 if (result.success) {
-                    addTerminalLine('Persönlichkeit gespeichert', 'response');
-                    addThought('Konfiguration', 'Benutzerdefinierte Persönlichkeit wurde aktualisiert');
+                    addTerminalLine('Personality saved', 'response');
+                    addThought('Configuration', 'Custom personality has been updated');
                     
                     // Update card name if changed
                     const cardName = document.querySelector('#card-custom .personality-name');
@@ -1651,7 +1651,7 @@
                     const features = document.querySelector('#card-custom .personality-features');
                     if (features) {
                         features.innerHTML = `
-                            <span class="feature ${config.use_knowledge_memory ? 'active' : ''}">${config.use_knowledge_memory ? '✓' : '✗'} PDF-Wissen</span>
+                            <span class="feature ${config.use_knowledge_memory ? 'active' : ''}">${config.use_knowledge_memory ? '✓' : '✗'} PDF Knowledge</span>
                             <span class="feature ${config.use_uncensored_boost ? 'active' : ''}">${config.use_uncensored_boost ? '✓' : '✗'} Uncensored Boost</span>
                         `;
                     }
@@ -1659,10 +1659,10 @@
                     closePersonalityModal();
                     loadPersonalities();
                 } else {
-                    addTerminalLine(`Fehler: ${result.error}`, 'error');
+                    addTerminalLine(`Error: ${result.error}`, 'error');
                 }
             } catch (error) {
-                addTerminalLine(`Fehler: ${error.message}`, 'error');
+                addTerminalLine(`Error: ${error.message}`, 'error');
             }
         });
 
@@ -1707,8 +1707,8 @@
             if (!taboos || taboos.length === 0) {
                 tabooList.innerHTML = `
                     <div class="taboo-empty">
-                        <p>🔓 Keine Tabus definiert</p>
-                        <p style="font-size: 0.85rem; margin-top: 0.5rem;">Der Bot ist vollständig uneingeschränkt.</p>
+                        <p>🔓 No taboos defined</p>
+                        <p style="font-size: 0.85rem; margin-top: 0.5rem;">The bot is completely unrestricted.</p>
                     </div>
                 `;
                 clearAllBtn.style.display = 'none';
@@ -1725,10 +1725,10 @@
                         <span class="taboo-item-category">${escapeHtml(taboo.category)}</span>
                     </div>
                     <div class="taboo-item-actions">
-                        <button class="taboo-btn" onclick="toggleTaboo('${taboo.id}')" title="${taboo.active ? 'Deaktivieren' : 'Aktivieren'}">
+                        <button class="taboo-btn" onclick="toggleTaboo('${taboo.id}')" title="${taboo.active ? 'Deactivate' : 'Activate'}">
                             ${taboo.active ? '⏸️' : '▶️'}
                         </button>
-                        <button class="taboo-btn taboo-btn-delete" onclick="deleteTaboo('${taboo.id}')" title="Löschen">
+                        <button class="taboo-btn taboo-btn-delete" onclick="deleteTaboo('${taboo.id}')" title="Delete">
                             🗑️
                         </button>
                     </div>
@@ -1739,9 +1739,9 @@
         function updateTabooBadge(stats) {
             const badge = document.getElementById('taboo-count-badge');
             if (stats) {
-                badge.textContent = `${stats.active_taboos} aktiv / ${stats.total_taboos} gesamt`;
+                badge.textContent = `${stats.active_taboos} active / ${stats.total_taboos} total`;
             } else {
-                badge.textContent = '0 Tabus';
+                badge.textContent = '0 Taboos';
             }
         }
 
@@ -1752,7 +1752,7 @@
             const category = categorySelect.value;
             
             if (!description) {
-                alert('Bitte gib eine Beschreibung für das Tabu ein.');
+                alert('Please enter a description for the taboo.');
                 return;
             }
             
@@ -1768,18 +1768,18 @@
                 if (data.success) {
                     input.value = '';
                     loadTaboos();
-                    addTerminalLine(`Tabu hinzugefügt: ${description}`, 'action');
+                    addTerminalLine(`Taboo added: ${description}`, 'action');
                 } else {
-                    alert('Fehler: ' + (data.error || 'Unbekannter Fehler'));
+                    alert('Error: ' + (data.error || 'Unknown error'));
                 }
             } catch (error) {
                 console.error('Error adding taboo:', error);
-                alert('Fehler beim Hinzufügen des Tabus.');
+                alert('Error adding taboo.');
             }
         }
 
         async function deleteTaboo(tabooId) {
-            if (!confirm('Dieses Tabu wirklich löschen?')) {
+            if (!confirm('Really delete this taboo?')) {
                 return;
             }
             
@@ -1792,13 +1792,13 @@
                 
                 if (data.success) {
                     loadTaboos();
-                    addTerminalLine('Tabu gelöscht', 'action');
+                    addTerminalLine('Taboo deleted', 'action');
                 } else {
-                    alert('Fehler: ' + (data.error || 'Tabu nicht gefunden'));
+                    alert('Error: ' + (data.error || 'Taboo not found'));
                 }
             } catch (error) {
                 console.error('Error deleting taboo:', error);
-                alert('Fehler beim Löschen des Tabus.');
+                alert('Error deleting taboo.');
             }
         }
 
@@ -1812,18 +1812,18 @@
                 
                 if (data.success) {
                     loadTaboos();
-                    addTerminalLine('Tabu-Status geändert', 'action');
+                    addTerminalLine('Taboo status changed', 'action');
                 } else {
-                    alert('Fehler: ' + (data.error || 'Tabu nicht gefunden'));
+                    alert('Error: ' + (data.error || 'Taboo not found'));
                 }
             } catch (error) {
                 console.error('Error toggling taboo:', error);
-                alert('Fehler beim Ändern des Tabu-Status.');
+                alert('Error changing taboo status.');
             }
         }
 
         async function clearAllTaboos() {
-            if (!confirm('ALLE Tabus wirklich löschen? Diese Aktion kann nicht rückgängig gemacht werden.')) {
+            if (!confirm('Really delete ALL taboos? This action cannot be undone.')) {
                 return;
             }
             
@@ -1836,19 +1836,19 @@
                 
                 if (data.success) {
                     loadTaboos();
-                    addTerminalLine('Alle Tabus gelöscht', 'action');
+                    addTerminalLine('All taboos deleted', 'action');
                 } else {
-                    alert('Fehler: ' + (data.error || 'Unbekannter Fehler'));
+                    alert('Error: ' + (data.error || 'Unknown error'));
                 }
             } catch (error) {
                 console.error('Error clearing taboos:', error);
-                alert('Fehler beim Löschen aller Tabus.');
+                alert('Error deleting all taboos.');
             }
         }
 
         function refreshTaboos() {
             loadTaboos();
-            addTerminalLine('Tabus aktualisiert', 'thought');
+            addTerminalLine('Taboos refreshed', 'thought');
         }
 
         // ============================================================
@@ -1864,7 +1864,7 @@
             const line = document.createElement('div');
             line.className = `terminal-line ${type}`;
             
-            const timestamp = new Date().toLocaleTimeString('de-DE');
+            const timestamp = new Date().toLocaleTimeString('en-US');
             line.innerHTML = `<span class="timestamp">[${timestamp}]</span> ${escapeHtml(message)}`;
             
             terminal.appendChild(line);
@@ -1902,7 +1902,7 @@
             stream.innerHTML = `
                 <div class="thought-entry">
                     <div class="thought-type">System</div>
-                    <div class="thought-content">Gedankenstrom geleert. Warte auf neue Aktivität...</div>
+                    <div class="thought-content">Thought stream cleared. Waiting for new activity...</div>
                 </div>
             `;
         }
@@ -1932,7 +1932,7 @@
         // ============================================================
         async function twitterRefreshStatus() {
             try {
-                addTerminalLine('Aktualisiere Twitter Status...', 'action');
+                addTerminalLine('Refreshing Twitter status...', 'action');
                 
                 const response = await fetch('/api/twitter/status');
                 const status = await response.json();
@@ -1943,13 +1943,13 @@
                 
                 if (status.scanning) {
                     statusDot.className = 'status-dot active';
-                    statusText.textContent = 'Scanner: Aktiv';
+                    statusText.textContent = 'Scanner: Active';
                 } else if (status.configured) {
                     statusDot.className = 'status-dot inactive';
-                    statusText.textContent = 'Scanner: Inaktiv';
+                    statusText.textContent = 'Scanner: Inactive';
                 } else {
                     statusDot.className = 'status-dot error';
-                    statusText.textContent = 'Nicht konfiguriert';
+                    statusText.textContent = 'Not configured';
                 }
                 
                 // Update stats
@@ -1958,50 +1958,50 @@
                 
                 // Update task and keywords
                 document.getElementById('current-task').textContent = 
-                    status.task || 'Keine Aufgabe konfiguriert';
+                    status.task || 'No task configured';
                 document.getElementById('search-keywords').textContent = 
                     (status.search_keywords && status.search_keywords.length > 0) 
                         ? status.search_keywords.join(', ') 
-                        : 'Keine Suchbegriffe konfiguriert';
+                        : 'No search keywords configured';
                 
-                addTerminalLine('Twitter Status aktualisiert', 'response');
-                addThought('Status Update', `Scanner: ${status.scanning ? 'Aktiv' : 'Inaktiv'}, ${status.tweets_found_total} Tweets gefunden`);
+                addTerminalLine('Twitter status updated', 'response');
+                addThought('Status Update', `Scanner: ${status.scanning ? 'Active' : 'Inactive'}, ${status.tweets_found_total} tweets found`);
                 
             } catch (error) {
-                addTerminalLine(`Fehler: ${error.message}`, 'error');
+                addTerminalLine(`Error: ${error.message}`, 'error');
             }
         }
 
         async function twitterScanNow() {
             try {
                 document.getElementById('btn-scan-now').disabled = true;
-                addTerminalLine('Starte manuellen Twitter Scan...', 'action');
-                addThought('Aktion', 'Führe manuellen Twitter Scan durch...');
+                addTerminalLine('Starting manual Twitter scan...', 'action');
+                addThought('Action', 'Performing manual Twitter scan...');
                 
                 const response = await fetch('/api/twitter/scan', { method: 'POST' });
                 const result = await response.json();
                 
                 if (result.success) {
-                    addTerminalLine(`Scan abgeschlossen: ${result.tweets_processed} Tweets verarbeitet`, 'response');
-                    addThought('Scan Ergebnis', `${result.tweets_processed} neue Tweets gefunden und verarbeitet`, 
-                        new Date().toLocaleString('de-DE'));
+                    addTerminalLine(`Scan completed: ${result.tweets_processed} tweets processed`, 'response');
+                    addThought('Scan Result', `${result.tweets_processed} new tweets found and processed`, 
+                        new Date().toLocaleString('en-US'));
                     
                     // Show thoughts for each processed tweet
                     if (result.results && result.results.length > 0) {
                         result.results.forEach(tweet => {
-                            addThought('Tweet Analyse', 
+                            addThought('Tweet Analysis', 
                                 `@${tweet.author}: "${tweet.tweet_text.substring(0, 100)}..."`,
-                                `Generierte Antwort: "${tweet.generated_response}"`);
+                                `Generated response: "${tweet.generated_response}"`);
                         });
                     }
                     
                     twitterRefreshStatus();
                     loadTwitterHistory();
                 } else {
-                    addTerminalLine(`Scan fehlgeschlagen: ${result.error}`, 'error');
+                    addTerminalLine(`Scan failed: ${result.error}`, 'error');
                 }
             } catch (error) {
-                addTerminalLine(`Fehler: ${error.message}`, 'error');
+                addTerminalLine(`Error: ${error.message}`, 'error');
             } finally {
                 document.getElementById('btn-scan-now').disabled = false;
             }
@@ -2009,37 +2009,37 @@
 
         async function twitterStartScanner() {
             try {
-                addTerminalLine('Starte automatischen Scanner...', 'action');
+                addTerminalLine('Starting automatic scanner...', 'action');
                 
                 const response = await fetch('/api/twitter/scanner/start', { method: 'POST' });
                 const result = await response.json();
                 
                 if (result.success) {
-                    addTerminalLine('Scanner erfolgreich gestartet', 'response');
-                    addThought('Scanner', 'Automatischer Twitter Scanner wurde aktiviert');
+                    addTerminalLine('Scanner successfully started', 'response');
+                    addThought('Scanner', 'Automatic Twitter scanner has been activated');
                 } else {
-                    addTerminalLine(`Fehler: ${result.message || result.error}`, 'error');
+                    addTerminalLine(`Error: ${result.message || result.error}`, 'error');
                 }
                 
                 twitterRefreshStatus();
             } catch (error) {
-                addTerminalLine(`Fehler: ${error.message}`, 'error');
+                addTerminalLine(`Error: ${error.message}`, 'error');
             }
         }
 
         async function twitterStopScanner() {
             try {
-                addTerminalLine('Stoppe Scanner...', 'action');
+                addTerminalLine('Stopping scanner...', 'action');
                 
                 const response = await fetch('/api/twitter/scanner/stop', { method: 'POST' });
                 const result = await response.json();
                 
-                addTerminalLine('Scanner gestoppt', 'response');
-                addThought('Scanner', 'Automatischer Twitter Scanner wurde deaktiviert');
+                addTerminalLine('Scanner stopped', 'response');
+                addThought('Scanner', 'Automatic Twitter scanner has been deactivated');
                 
                 twitterRefreshStatus();
             } catch (error) {
-                addTerminalLine(`Fehler: ${error.message}`, 'error');
+                addTerminalLine(`Error: ${error.message}`, 'error');
             }
         }
 
@@ -2051,7 +2051,7 @@
                 const listEl = document.getElementById('tweet-history-list');
                 
                 if (!Array.isArray(history) || history.length === 0) {
-                    listEl.innerHTML = '<p style="text-align: center; color: var(--text-light);">Keine Tweets in der Historie</p>';
+                    listEl.innerHTML = '<p style="text-align: center; color: var(--text-light);">No tweets in history</p>';
                     return;
                 }
                 
@@ -2064,41 +2064,41 @@
                         <div class="tweet-text">${escapeHtml(tweet.tweet_text || '')}</div>
                         ${tweet.generated_response ? `
                             <div class="tweet-response">
-                                <strong>Generierte Antwort:</strong> ${escapeHtml(tweet.generated_response)}
+                                <strong>Generated response:</strong> ${escapeHtml(tweet.generated_response)}
                             </div>
                         ` : ''}
                         <div class="tweet-actions">
                             ${tweet.replied ? 
-                                '<span style="color: #4caf50;">✓ Geantwortet</span>' : 
-                                `<button class="btn btn-sm btn-primary" onclick="sendTwitterReply('${tweet.tweet_id}', '${escapeHtml(tweet.generated_response || '').replace(/'/g, "\\'")}')">Antworten</button>`
+                                '<span style="color: #4caf50;">✓ Replied</span>' : 
+                                `<button class="btn btn-sm btn-primary" onclick="sendTwitterReply('${tweet.tweet_id}', '${escapeHtml(tweet.generated_response || '').replace(/'/g, "\\'")}')">Reply</button>`
                             }
                         </div>
                     </div>
                 `).join('');
                 
             } catch (error) {
-                addTerminalLine(`Fehler beim Laden der Historie: ${error.message}`, 'error');
+                addTerminalLine(`Error loading history: ${error.message}`, 'error');
             }
         }
 
         async function clearTwitterHistory() {
-            if (!confirm('Bist du sicher, dass du die gesamte Tweet-Historie löschen möchtest?')) {
+            if (!confirm('Are you sure you want to delete the entire tweet history?')) {
                 return;
             }
             
             try {
                 await fetch('/api/twitter/history', { method: 'DELETE' });
-                addTerminalLine('Tweet-Historie gelöscht', 'response');
+                addTerminalLine('Tweet history deleted', 'response');
                 loadTwitterHistory();
                 twitterRefreshStatus();
             } catch (error) {
-                addTerminalLine(`Fehler: ${error.message}`, 'error');
+                addTerminalLine(`Error: ${error.message}`, 'error');
             }
         }
 
         async function sendTwitterReply(tweetId, responseText) {
             try {
-                addTerminalLine(`Sende Antwort auf Tweet ${tweetId}...`, 'action');
+                addTerminalLine(`Sending reply to tweet ${tweetId}...`, 'action');
                 
                 const response = await fetch('/api/twitter/reply', {
                     method: 'POST',
@@ -2112,14 +2112,14 @@
                 const result = await response.json();
                 
                 if (result.success) {
-                    addTerminalLine('Antwort erfolgreich gesendet', 'response');
-                    addThought('Twitter Antwort', `Erfolgreich geantwortet auf Tweet ${tweetId}`);
+                    addTerminalLine('Reply successfully sent', 'response');
+                    addThought('Twitter Reply', `Successfully replied to tweet ${tweetId}`);
                     loadTwitterHistory();
                 } else {
-                    addTerminalLine(`Fehler: ${result.error}`, 'error');
+                    addTerminalLine(`Error: ${result.error}`, 'error');
                 }
             } catch (error) {
-                addTerminalLine(`Fehler: ${error.message}`, 'error');
+                addTerminalLine(`Error: ${error.message}`, 'error');
             }
         }
 
@@ -2152,7 +2152,7 @@
             });
             
             try {
-                addTerminalLine('Speichere Twitter Konfiguration...', 'action');
+                addTerminalLine('Saving Twitter configuration...', 'action');
                 
                 const response = await fetch('/api/twitter/config', {
                     method: 'PUT',
@@ -2163,8 +2163,8 @@
                 const result = await response.json();
                 
                 if (result.success) {
-                    addTerminalLine('Konfiguration gespeichert', 'response');
-                    addThought('Konfiguration', 'Twitter-Einstellungen wurden aktualisiert');
+                    addTerminalLine('Configuration saved', 'response');
+                    addThought('Configuration', 'Twitter settings have been updated');
                     twitterRefreshStatus();
                     
                     // Clear password fields after save
@@ -2174,10 +2174,10 @@
                     document.getElementById('twitter-access-secret').value = '';
                     document.getElementById('twitter-bearer-token').value = '';
                 } else {
-                    addTerminalLine(`Fehler: ${result.error}`, 'error');
+                    addTerminalLine(`Error: ${result.error}`, 'error');
                 }
             } catch (error) {
-                addTerminalLine(`Fehler: ${error.message}`, 'error');
+                addTerminalLine(`Error: ${error.message}`, 'error');
             }
         });
 
@@ -2201,7 +2201,7 @@
         // ============================================================
         async function telegramRefreshStatus() {
             try {
-                addTerminalLine('Aktualisiere Telegram Status...', 'action');
+                addTerminalLine('Refreshing Telegram status...', 'action');
                 
                 const response = await fetch('/api/telegram/status');
                 const status = await response.json();
@@ -2212,13 +2212,13 @@
                 
                 if (status.running) {
                     statusDot.className = 'status-dot active';
-                    statusText.textContent = 'Bot: Aktiv';
+                    statusText.textContent = 'Bot: Active';
                 } else if (status.configured) {
                     statusDot.className = 'status-dot inactive';
-                    statusText.textContent = 'Bot: Inaktiv';
+                    statusText.textContent = 'Bot: Inactive';
                 } else {
                     statusDot.className = 'status-dot error';
-                    statusText.textContent = 'Nicht konfiguriert';
+                    statusText.textContent = 'Not configured';
                 }
                 
                 // Update stats
@@ -2232,37 +2232,37 @@
                 
                 // Update username and task
                 document.getElementById('telegram-username').textContent = 
-                    status.bot_username ? `@${status.bot_username}` : 'Nicht konfiguriert';
+                    status.bot_username ? `@${status.bot_username}` : 'Not configured';
                 document.getElementById('telegram-task').textContent = 
-                    status.task || 'Keine Aufgabe konfiguriert';
+                    status.task || 'No task configured';
                 
-                addTerminalLine('Telegram Status aktualisiert', 'response');
-                addThought('Telegram Update', `Bot: ${status.running ? 'Aktiv' : 'Inaktiv'}, ${memStats.total_users || 0} Nutzer im Gedächtnis`);
+                addTerminalLine('Telegram status updated', 'response');
+                addThought('Telegram Update', `Bot: ${status.running ? 'Active' : 'Inactive'}, ${memStats.total_users || 0} users in memory`);
                 
             } catch (error) {
-                addTerminalLine(`Fehler: ${error.message}`, 'error');
+                addTerminalLine(`Error: ${error.message}`, 'error');
             }
         }
 
         async function telegramStartBot() {
             try {
                 document.getElementById('btn-telegram-start').disabled = true;
-                addTerminalLine('Starte Telegram Bot...', 'action');
-                addThought('Telegram', 'Starte Bot...');
+                addTerminalLine('Starting Telegram bot...', 'action');
+                addThought('Telegram', 'Starting bot...');
                 
                 const response = await fetch('/api/telegram/start', { method: 'POST' });
                 const result = await response.json();
                 
                 if (result.success) {
-                    addTerminalLine('Telegram Bot gestartet', 'response');
-                    addThought('Telegram', 'Bot wurde erfolgreich gestartet');
+                    addTerminalLine('Telegram bot started', 'response');
+                    addThought('Telegram', 'Bot was successfully started');
                 } else {
-                    addTerminalLine(`Fehler: ${result.message || result.error}`, 'error');
+                    addTerminalLine(`Error: ${result.message || result.error}`, 'error');
                 }
                 
                 telegramRefreshStatus();
             } catch (error) {
-                addTerminalLine(`Fehler: ${error.message}`, 'error');
+                addTerminalLine(`Error: ${error.message}`, 'error');
             } finally {
                 document.getElementById('btn-telegram-start').disabled = false;
             }
@@ -2270,17 +2270,17 @@
 
         async function telegramStopBot() {
             try {
-                addTerminalLine('Stoppe Telegram Bot...', 'action');
+                addTerminalLine('Stopping Telegram bot...', 'action');
                 
                 const response = await fetch('/api/telegram/stop', { method: 'POST' });
                 const result = await response.json();
                 
-                addTerminalLine('Telegram Bot gestoppt', 'response');
-                addThought('Telegram', 'Bot wurde gestoppt');
+                addTerminalLine('Telegram bot stopped', 'response');
+                addThought('Telegram', 'Bot was stopped');
                 
                 telegramRefreshStatus();
             } catch (error) {
-                addTerminalLine(`Fehler: ${error.message}`, 'error');
+                addTerminalLine(`Error: ${error.message}`, 'error');
             }
         }
 
@@ -2292,48 +2292,48 @@
                 const listEl = document.getElementById('telegram-history-list');
                 
                 if (!Array.isArray(history) || history.length === 0) {
-                    listEl.innerHTML = '<p style="text-align: center; color: var(--text-light);">Keine Nachrichten in der Historie</p>';
+                    listEl.innerHTML = '<p style="text-align: center; color: var(--text-light);">No messages in history</p>';
                     return;
                 }
                 
                 listEl.innerHTML = history.map(msg => `
                     <div class="tweet-item">
                         <div class="tweet-header">
-                            <span class="tweet-author">${escapeHtml(msg.first_name || msg.username || 'Unbekannt')}</span>
+                            <span class="tweet-author">${escapeHtml(msg.first_name || msg.username || 'Unknown')}</span>
                             <span class="tweet-time">${formatDate(msg.processed_at)}</span>
                         </div>
                         <div class="tweet-text">${escapeHtml(msg.text || '')}</div>
                         ${msg.generated_response ? `
                             <div class="tweet-response">
-                                <strong>Antwort:</strong> ${escapeHtml(msg.generated_response)}
+                                <strong>Response:</strong> ${escapeHtml(msg.generated_response)}
                             </div>
                         ` : ''}
                         <div class="tweet-actions">
                             ${msg.replied ? 
-                                '<span style="color: #4caf50;">✓ Geantwortet</span>' : 
-                                (msg.should_respond ? '<span style="color: #ff9800;">Ausstehend</span>' : '<span style="color: #9e9e9e;">Keine Antwort nötig</span>')
+                                '<span style="color: #4caf50;">✓ Replied</span>' : 
+                                (msg.should_respond ? '<span style="color: #ff9800;">Pending</span>' : '<span style="color: #9e9e9e;">No response needed</span>')
                             }
                         </div>
                     </div>
                 `).join('');
                 
             } catch (error) {
-                addTerminalLine(`Fehler beim Laden der Telegram-Historie: ${error.message}`, 'error');
+                addTerminalLine(`Error loading Telegram history: ${error.message}`, 'error');
             }
         }
 
         async function clearTelegramHistory() {
-            if (!confirm('Bist du sicher, dass du den gesamten Nachrichtenverlauf löschen möchtest?')) {
+            if (!confirm('Are you sure you want to delete the entire message history?')) {
                 return;
             }
             
             try {
                 await fetch('/api/telegram/history', { method: 'DELETE' });
-                addTerminalLine('Telegram-Historie gelöscht', 'response');
+                addTerminalLine('Telegram history deleted', 'response');
                 loadTelegramHistory();
                 telegramRefreshStatus();
             } catch (error) {
-                addTerminalLine(`Fehler: ${error.message}`, 'error');
+                addTerminalLine(`Error: ${error.message}`, 'error');
             }
         }
 
@@ -2345,7 +2345,7 @@
                 const listEl = document.getElementById('telegram-memory-list');
                 
                 if (!Array.isArray(memories) || memories.length === 0) {
-                    listEl.innerHTML = '<p style="text-align: center; color: var(--text-light);">Keine Nutzer im Gedächtnis</p>';
+                    listEl.innerHTML = '<p style="text-align: center; color: var(--text-light);">No users in memory</p>';
                     return;
                 }
                 
@@ -2353,21 +2353,21 @@
                     <div class="tweet-item">
                         <div class="tweet-header">
                             <span class="tweet-author">${escapeHtml(user.first_name || '')} ${escapeHtml(user.last_name || '')} ${user.username ? '(@' + escapeHtml(user.username) + ')' : ''}</span>
-                            <span class="tweet-time">Zuletzt: ${formatDate(user.last_seen)}</span>
+                            <span class="tweet-time">Last seen: ${formatDate(user.last_seen)}</span>
                         </div>
                         <div class="tweet-text">
-                            <strong>${user.interaction_count}</strong> Interaktionen • 
-                            <strong>${user.facts_count}</strong> gelernte Fakten
+                            <strong>${user.interaction_count}</strong> interactions • 
+                            <strong>${user.facts_count}</strong> learned facts
                         </div>
                         <div class="tweet-actions">
                             <button class="btn btn-sm btn-secondary" onclick="viewUserMemory(${user.user_id}, ${user.chat_id})">Details</button>
-                            <button class="btn btn-sm btn-danger" onclick="clearUserMemory(${user.user_id}, ${user.chat_id})">Löschen</button>
+                            <button class="btn btn-sm btn-danger" onclick="clearUserMemory(${user.user_id}, ${user.chat_id})">Delete</button>
                         </div>
                     </div>
                 `).join('');
                 
             } catch (error) {
-                addTerminalLine(`Fehler beim Laden der Nutzer-Memories: ${error.message}`, 'error');
+                addTerminalLine(`Error loading user memories: ${error.message}`, 'error');
             }
         }
 
@@ -2376,54 +2376,54 @@
                 const response = await fetch(`/api/telegram/memories/${userId}/${chatId}`);
                 const memory = await response.json();
                 
-                let details = `Nutzer: ${memory.first_name || ''} ${memory.last_name || ''}\n`;
+                let details = `User: ${memory.first_name || ''} ${memory.last_name || ''}\n`;
                 details += `Username: @${memory.username || 'N/A'}\n`;
-                details += `Erste Interaktion: ${formatDate(memory.first_seen)}\n`;
-                details += `Letzte Interaktion: ${formatDate(memory.last_seen)}\n`;
-                details += `Anzahl Interaktionen: ${memory.interaction_count}\n\n`;
+                details += `First interaction: ${formatDate(memory.first_seen)}\n`;
+                details += `Last interaction: ${formatDate(memory.last_seen)}\n`;
+                details += `Interaction count: ${memory.interaction_count}\n\n`;
                 
                 if (memory.facts && memory.facts.length > 0) {
-                    details += `Gelernte Fakten:\n`;
+                    details += `Learned facts:\n`;
                     memory.facts.forEach(fact => {
                         details += `- ${fact}\n`;
                     });
                 }
                 
                 alert(details);
-                addThought('Nutzer-Memory', `Details für ${memory.first_name || memory.username || userId} angezeigt`);
+                addThought('User Memory', `Details for ${memory.first_name || memory.username || userId} displayed`);
                 
             } catch (error) {
-                addTerminalLine(`Fehler: ${error.message}`, 'error');
+                addTerminalLine(`Error: ${error.message}`, 'error');
             }
         }
 
         async function clearUserMemory(userId, chatId) {
-            if (!confirm('Bist du sicher, dass du das Gedächtnis für diesen Nutzer löschen möchtest?')) {
+            if (!confirm('Are you sure you want to delete the memory for this user?')) {
                 return;
             }
             
             try {
                 await fetch(`/api/telegram/memories/${userId}/${chatId}`, { method: 'DELETE' });
-                addTerminalLine(`Nutzer-Gedächtnis gelöscht`, 'response');
+                addTerminalLine(`User memory deleted`, 'response');
                 loadTelegramMemories();
                 telegramRefreshStatus();
             } catch (error) {
-                addTerminalLine(`Fehler: ${error.message}`, 'error');
+                addTerminalLine(`Error: ${error.message}`, 'error');
             }
         }
 
         async function clearAllTelegramMemories() {
-            if (!confirm('Bist du sicher, dass du ALLE Nutzer-Gedächtnisse löschen möchtest? Diese Aktion kann nicht rückgängig gemacht werden!')) {
+            if (!confirm('Are you sure you want to delete ALL user memories? This action cannot be undone!')) {
                 return;
             }
             
             try {
                 await fetch('/api/telegram/memories', { method: 'DELETE' });
-                addTerminalLine('Alle Nutzer-Gedächtnisse gelöscht', 'response');
+                addTerminalLine('All user memories deleted', 'response');
                 loadTelegramMemories();
                 telegramRefreshStatus();
             } catch (error) {
-                addTerminalLine(`Fehler: ${error.message}`, 'error');
+                addTerminalLine(`Error: ${error.message}`, 'error');
             }
         }
 
@@ -2448,7 +2448,7 @@
             });
             
             try {
-                addTerminalLine('Speichere Telegram Konfiguration...', 'action');
+                addTerminalLine('Saving Telegram configuration...', 'action');
                 
                 const response = await fetch('/api/telegram/config', {
                     method: 'PUT',
@@ -2459,17 +2459,17 @@
                 const result = await response.json();
                 
                 if (result.success) {
-                    addTerminalLine('Telegram-Konfiguration gespeichert', 'response');
-                    addThought('Konfiguration', 'Telegram-Einstellungen wurden aktualisiert');
+                    addTerminalLine('Telegram configuration saved', 'response');
+                    addThought('Configuration', 'Telegram settings have been updated');
                     telegramRefreshStatus();
                     
                     // Clear token field after save
                     document.getElementById('telegram-bot-token').value = '';
                 } else {
-                    addTerminalLine(`Fehler: ${result.error}`, 'error');
+                    addTerminalLine(`Error: ${result.error}`, 'error');
                 }
             } catch (error) {
-                addTerminalLine(`Fehler: ${error.message}`, 'error');
+                addTerminalLine(`Error: ${error.message}`, 'error');
             }
         });
 
@@ -2502,14 +2502,14 @@
             
             // Add user message
             addChatMessage(message, 'user');
-            addTerminalLine(`Benutzer: ${message}`, 'action');
-            addThought('Anfrage', message, 'Vom Benutzer');
+            addTerminalLine(`User: ${message}`, 'action');
+            addThought('Request', message, 'From user');
             
             // Add thinking indicator
             const thinkingDiv = document.createElement('div');
             thinkingDiv.className = 'message assistant';
             thinkingDiv.id = 'thinking';
-            thinkingDiv.innerHTML = '<span class="loading"></span> Der Imperator denkt nach...';
+            thinkingDiv.innerHTML = '<span class="loading"></span> The Emperor is thinking...';
             document.getElementById('chat-messages').appendChild(thinkingDiv);
             
             try {
@@ -2556,13 +2556,13 @@
                                 
                                 if (data.done) {
                                     currentConvId = data.conv_id;
-                                    addTerminalLine(`Antwort generiert (${fullResponse.length} Zeichen)`, 'response');
-                                    addThought('Antwort', fullResponse.substring(0, 200) + (fullResponse.length > 200 ? '...' : ''));
+                                    addTerminalLine(`Response generated (${fullResponse.length} characters)`, 'response');
+                                    addThought('Response', fullResponse.substring(0, 200) + (fullResponse.length > 200 ? '...' : ''));
                                 }
                                 
                                 if (data.error) {
-                                    assistantDiv.innerHTML = `<span style="color: #f44336;">Fehler: ${data.error}</span>`;
-                                    addTerminalLine(`Fehler: ${data.error}`, 'error');
+                                    assistantDiv.innerHTML = `<span style="color: #f44336;">Error: ${data.error}</span>`;
+                                    addTerminalLine(`Error: ${data.error}`, 'error');
                                 }
                             } catch (e) {
                                 // Ignore parsing errors
@@ -2573,8 +2573,8 @@
                 
             } catch (error) {
                 document.getElementById('thinking')?.remove();
-                addChatMessage(`Fehler: ${error.message}`, 'assistant');
-                addTerminalLine(`Fehler: ${error.message}`, 'error');
+                addChatMessage(`Error: ${error.message}`, 'assistant');
+                addTerminalLine(`Error: ${error.message}`, 'error');
             } finally {
                 isStreaming = false;
             }
@@ -2607,17 +2607,17 @@
                 
                 if (health.status === 'ok' && health.ollama_running) {
                     statusDot.className = 'status-dot active';
-                    statusText.textContent = `${health.model} bereit`;
-                    addTerminalLine(`System online: ${health.model}, ${health.documents_count} Dokumente`, 'response');
+                    statusText.textContent = `${health.model} ready`;
+                    addTerminalLine(`System online: ${health.model}, ${health.documents_count} documents`, 'response');
                 } else {
                     statusDot.className = 'status-dot error';
-                    statusText.textContent = 'Ollama nicht erreichbar';
-                    addTerminalLine('Warnung: Ollama ist nicht erreichbar', 'error');
+                    statusText.textContent = 'Ollama not reachable';
+                    addTerminalLine('Warning: Ollama is not reachable', 'error');
                 }
             } catch (error) {
                 document.getElementById('llm-status').className = 'status-dot error';
-                document.getElementById('llm-status-text').textContent = 'Server nicht erreichbar';
-                addTerminalLine(`Verbindungsfehler: ${error.message}`, 'error');
+                document.getElementById('llm-status-text').textContent = 'Server not reachable';
+                addTerminalLine(`Connection error: ${error.message}`, 'error');
             }
         }
 
@@ -2643,7 +2643,7 @@
         function formatDate(isoString) {
             if (!isoString) return '';
             try {
-                return new Date(isoString).toLocaleString('de-DE');
+                return new Date(isoString).toLocaleString('en-US');
             } catch {
                 return isoString;
             }
@@ -2669,7 +2669,7 @@
             setInterval(twitterRefreshStatus, 60000);
             setInterval(telegramRefreshStatus, 60000);
             
-            addTerminalLine('Dashboard initialisiert. Ave Caesar!', 'response');
+            addTerminalLine('Dashboard initialized. Ave Caesar!', 'response');
         });
 
         // Load taboo statistics for badge display

@@ -426,11 +426,11 @@ class TelegramHandler:
         # Build the user query for Telegram
         display_name = first_name or username or "User"
         user_query_parts = [
-            f"Du bist ein Telegram Bot Assistent. Deine Aufgabe ist: {task}",
+            f"You are a Telegram Bot assistant. Your task is: {task}",
             "",
-            "WICHTIG: Du hast ein Gedächtnis über vergangene Interaktionen mit diesem Nutzer. "
-            "Nutze dieses Gedächtnis, um personalisierte, kontextuelle Antworten zu geben. "
-            "Beziehe dich auf vergangene Gespräche, wenn relevant.",
+            "IMPORTANT: You have memory of past interactions with this user. "
+            "Use this memory to give personalized, contextual responses. "
+            "Reference past conversations when relevant.",
             ""
         ]
         
@@ -438,12 +438,12 @@ class TelegramHandler:
             user_query_parts.append(memory_context)
             user_query_parts.append("")
         
-        user_query_parts.append(f"Aktuelle Nachricht von {display_name}:")
+        user_query_parts.append(f"Current message from {display_name}:")
         user_query_parts.append(f'"{message}"')
         user_query_parts.append("")
-        user_query_parts.append("Generiere eine hilfreiche, engagierte Antwort. "
-                               "Wenn der Nutzer etwas Persönliches erwähnt, "
-                               "merke es dir für zukünftige Gespräche.")
+        user_query_parts.append("Generate a helpful, engaging response. "
+                               "If the user mentions something personal, "
+                               "remember it for future conversations.")
         
         user_query = "\n".join(user_query_parts)
         
