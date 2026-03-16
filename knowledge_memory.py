@@ -7,7 +7,6 @@ Supports Redis-based embedding caching for improved performance.
 
 import hashlib
 import json
-import logging
 import os
 from datetime import datetime
 from pathlib import Path
@@ -15,10 +14,11 @@ from typing import Dict, List, Optional, Any, TypedDict, Union
 
 from pydantic import BaseModel, Field, field_validator, ConfigDict
 from utils import PersistentStorage
+from logging_config import get_logger
 
 
-# Setup logging
-logger = logging.getLogger('llm_servant')
+# Setup logging with file rotation
+logger = get_logger('knowledge_memory')
 
 
 # ============================================================

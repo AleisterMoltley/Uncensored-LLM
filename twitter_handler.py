@@ -5,7 +5,6 @@ Supports both thread-based and Celery-based background scanning.
 Extended with advanced Tweepy v2 filters for precise tweet filtering.
 """
 
-import logging
 import threading
 import time
 from datetime import datetime, timedelta, timezone
@@ -13,6 +12,7 @@ from pathlib import Path
 from typing import Optional, Dict, List, Any, Callable, TypedDict
 
 from utils import PersistentStorage
+from logging_config import get_logger
 
 
 class TwitterV2Filters(TypedDict, total=False):
@@ -51,8 +51,8 @@ class TwitterV2Filters(TypedDict, total=False):
     # Time filters
     max_age_hours: int  # Maximum age in hours (default 3)
 
-# Logger for Twitter handler
-logger = logging.getLogger("llm_servant.twitter")
+# Logger for Twitter handler with file rotation
+logger = get_logger("twitter")
 
 # Twitter history persistence
 TWITTER_DIR = Path(__file__).parent / "twitter_data"

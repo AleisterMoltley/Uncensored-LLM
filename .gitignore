@@ -44,4 +44,5 @@ telegram_data/
 discord_data/
 
 # Logs
+logs/
 *.log

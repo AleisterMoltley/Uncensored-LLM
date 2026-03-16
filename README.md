@@ -21,6 +21,7 @@ your Mac Mini with Apple Silicon or compatible Windows/Linux systems (see requir
 - [Knowledge Memory](#knowledge-memory-personality-shaping)
 - [Twitter Integration](#twitter-integration)
 - [Dashboard](#dashboard)
+- [Logging and Monitoring](#-logging-and-monitoring)
 - [Troubleshooting FAQ](#-troubleshooting-faq)
 
 ---
@@ -140,7 +141,7 @@ python -m venv venv
 .\venv\Scripts\Activate.ps1
 
 # 6. Install dependencies
-pip install flask flask-cors langchain langchain-community langchain-ollama chromadb pypdf requests psutil
+pip install flask flask-cors langchain langchain-community langchain-ollama chromadb pypdf requests psutil prometheus_client
 
 # 7. Start the server
 python server.py
@@ -199,7 +200,7 @@ python3 -m venv venv
 source venv/bin/activate
 
 # 7. Install Python packages
-pip install flask flask-cors langchain langchain-community langchain-ollama chromadb pypdf requests psutil
+pip install flask flask-cors langchain langchain-community langchain-ollama chromadb pypdf requests psutil prometheus_client
 
 # 8. Start the server
 python3 server.py
@@ -601,6 +602,9 @@ The cache stores text embeddings with configurable TTL, reducing redundant compu
 | GET/PUT | /api/config | Configuration |
 | GET | /api/health | Status |
 | POST | /api/unload | Unload unused models |
+| GET | /metrics | Prometheus metrics endpoint |
+| GET | /api/system/stats | RAM usage statistics |
+| GET | /api/system/stats/extended | CPU, RAM, and process metrics |
 
 ### Knowledge Memory API Endpoints
 
@@ -783,6 +787,99 @@ Access the Roman Imperial Dashboard at:
 
 ---
 
+## 📊 Logging and Monitoring
+
+LLM Servant includes built-in logging with file rotation and Prometheus metrics for monitoring system resources.
+
+### Logging Configuration
+
+All log files are stored in the `logs/` directory with automatic file rotation:
+
+- **Log file**: `logs/llm_servant.log`
+- **Max file size**: 10 MB (configurable)
+- **Backup files**: 5 rotating backups
+
+**Environment Variables:**
+- `LLM_SERVANT_DEBUG=1` - Enable debug logging with stack traces
+- `LLM_SERVANT_LOG_DIR=/path/to/logs` - Custom log directory
+
+**Debug Mode:**
+```bash
+# Run with debug logging
+LLM_SERVANT_DEBUG=1 python3 server.py
+```
+
+### Prometheus Metrics
+
+The `/metrics` endpoint exposes system metrics in Prometheus format for scraping by monitoring systems like Grafana.
+
+**Available Metrics:**
+
+| Metric | Description |
+|--------|-------------|
+| `llm_servant_ram_usage_bytes` | RAM usage by type (total, used, available) |
+| `llm_servant_ram_usage_percent` | RAM usage as percentage |
+| `llm_servant_cpu_usage_percent` | CPU usage by core |
+| `llm_servant_cpu_count` | Number of CPU cores (physical/logical) |
+| `llm_servant_process_ram_bytes` | RAM usage of the server process |
+| `llm_servant_process_cpu_percent` | CPU usage of the server process |
+| `llm_servant_process_threads` | Number of threads in the server |
+| `llm_servant_knowledge_memory_size_bytes` | Knowledge memory storage size |
+| `llm_servant_pdf_documents_processed` | Total PDFs processed |
+| `llm_servant_insights_count` | Total insights extracted |
+
+**Usage:**
+```bash
+# Fetch metrics
+curl http://localhost:7777/metrics
+
+# Example output:
+# HELP llm_servant_ram_usage_percent Current RAM usage as percentage
+# TYPE llm_servant_ram_usage_percent gauge
+llm_servant_ram_usage_percent 42.5
+```
+
+**Install prometheus_client (optional):**
+```bash
+pip install prometheus_client
+```
+
+If `prometheus_client` is not installed, the `/metrics` endpoint returns a simple text response.
+
+### Extended System Stats API
+
+The `/api/system/stats/extended` endpoint provides detailed system information in JSON format:
+
+```json
+{
+  "cpu": {
+    "usage_percent": 35.2,
+    "per_cpu_percent": [40.1, 30.3],
+    "physical_cores": 4,
+    "logical_cores": 8
+  },
+  "ram": {
+    "total_bytes": 17179869184,
+    "used_bytes": 8589934592,
+    "available_bytes": 8589934592,
+    "percent": 50.0
+  },
+  "process": {
+    "ram_bytes": 134217728,
+    "cpu_percent": 2.5,
+    "threads": 12
+  },
+  "config": {
+    "low_memory_mode": false,
+    "effective_num_ctx": 2048,
+    "effective_top_k": 5
+  },
+  "prometheus_available": true
+}
+```
+
+---
+
 ## 🔧 Troubleshooting FAQ
 
 ### Quick Reference Table
@@ -870,7 +967,7 @@ source venv/bin/activate
 .\venv\Scripts\Activate.ps1
 
 # Install dependencies
-pip install flask flask-cors langchain langchain-community langchain-ollama chromadb pypdf requests psutil
+pip install flask flask-cors langchain langchain-community langchain-ollama chromadb pypdf requests psutil prometheus_client
 
 # Verify installation
 pip list | grep flask
