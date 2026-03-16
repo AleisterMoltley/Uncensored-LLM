@@ -1,8 +1,10 @@
 """
 Twitter Integration Handler for LocalLLM
 Scans Twitter for tweets matching assigned tasks and responds using the LLM.
+Supports both thread-based and Celery-based background scanning.
 """
 
+import logging
 import threading
 import time
 from datetime import datetime, timedelta, timezone
@@ -10,6 +12,9 @@ from pathlib import Path
 from typing import Optional, Dict, List, Any, Callable
 
 from utils import PersistentStorage
+
+# Logger for Twitter handler
+logger = logging.getLogger("llm_servant.twitter")
 
 # Twitter history persistence
 TWITTER_DIR = Path(__file__).parent / "twitter_data"
@@ -44,11 +49,34 @@ class TwitterHandler:
         self.client = None
         self._scanner_thread: Optional[threading.Thread] = None
         self._scanner_running = False
+        self._celery_task_id: Optional[str] = None
+        self._use_celery = self._check_celery_available()
         self._history: List[Dict] = []
         
         # Initialize persistent storage for history
         self._storage = PersistentStorage(HISTORY_FILE)
         self._load_history()
+    
+    def _check_celery_available(self) -> bool:
+        """
+        Check if Celery is available and enabled for background tasks.
+        
+        Returns:
+            bool: True if Celery should be used for background tasks
+        """
+        try:
+            from celery_app import is_celery_available, get_celery_config
+            
+            config = get_celery_config()
+            if not config.get("enabled", False):
+                return False
+            
+            return is_celery_available()
+        except ImportError:
+            return False
+        except Exception as e:
+            logger.debug("Celery availability check failed: %s", e)
+            return False
         
     def _load_history(self):
         """Load tweet history from disk."""
@@ -123,17 +151,30 @@ class TwitterHandler:
             return False
     
     def get_status(self) -> Dict:
-        """Get current Twitter handler status."""
-        return {
+        """Get current Twitter handler status including background task info."""
+        status = {
             "configured": bool(self.api),
-            "scanning": self._scanner_running,
+            "scanning": self._scanner_running or self._celery_task_id is not None,
             "task": self.config.get("task", ""),
             "search_keywords": self.config.get("search_keywords", []),
             "scan_interval_minutes": self.config.get("scan_interval_minutes", 5),
             "auto_reply": self.config.get("auto_reply", False),
             "tweets_found_total": len(self._history),
-            "tweets_replied_total": len([h for h in self._history if h.get("replied")])
+            "tweets_replied_total": len([h for h in self._history if h.get("replied")]),
+            "backend": "celery" if self._use_celery else "thread"
         }
+        
+        # Add Celery task info if applicable
+        if self._celery_task_id:
+            status["celery_task_id"] = self._celery_task_id
+            try:
+                from background_tasks import get_task_status
+                task_status = get_task_status(self._celery_task_id)
+                status["celery_task_status"] = task_status.get("status", "unknown")
+            except ImportError:
+                pass
+        
+        return status
     
     def search_tweets(self, max_results: int = 20) -> List[Dict]:
         """
@@ -342,36 +383,123 @@ Gib nur den Antworttext aus, nichts anderes."""
         
         return results
     
-    def start_scanner(self):
-        """Start the background tweet scanner."""
-        if self._scanner_running:
+    def start_scanner(self) -> Dict[str, Any]:
+        """
+        Start the background tweet scanner.
+        Uses Celery if available and enabled, otherwise falls back to threading.
+        
+        Returns:
+            dict: Result with success status and backend used
+        """
+        if self._scanner_running or self._celery_task_id:
             return {"success": False, "message": "Scanner already running"}
         
         if not self.client:
             return {"success": False, "message": "Twitter API not configured"}
         
+        # Check if Celery is available and should be used
+        self._use_celery = self._check_celery_available()
+        
+        if self._use_celery:
+            return self._start_celery_scanner()
+        else:
+            return self._start_thread_scanner()
+    
+    def _start_celery_scanner(self) -> Dict[str, Any]:
+        """
+        Start scanner using Celery for background processing.
+        
+        Returns:
+            dict: Result with task ID
+        """
+        try:
+            from background_tasks import schedule_twitter_scan
+            
+            result = schedule_twitter_scan()
+            
+            if result.get("scheduled"):
+                self._celery_task_id = result.get("task_id")
+                logger.info("Twitter scanner started via Celery, task_id: %s", self._celery_task_id)
+                return {
+                    "success": True,
+                    "message": "Scanner started (Celery)",
+                    "backend": "celery",
+                    "task_id": self._celery_task_id
+                }
+            else:
+                # Celery scheduling failed, fall back to thread
+                logger.warning("Celery scheduling failed, falling back to thread")
+                return self._start_thread_scanner()
+                
+        except ImportError as e:
+            logger.warning("Celery import failed: %s, using thread scanner", e)
+            return self._start_thread_scanner()
+        except Exception as e:
+            logger.error("Celery scanner start failed: %s", e)
+            return self._start_thread_scanner()
+    
+    def _start_thread_scanner(self) -> Dict[str, Any]:
+        """
+        Start scanner using traditional threading.
+        
+        Returns:
+            dict: Result
+        """
         self._scanner_running = True
         self._scanner_thread = threading.Thread(target=self._scanner_loop, daemon=True)
         self._scanner_thread.start()
         
-        return {"success": True, "message": "Scanner started"}
+        logger.info("Twitter scanner started via threading")
+        return {
+            "success": True,
+            "message": "Scanner started (Thread)",
+            "backend": "thread"
+        }
     
-    def stop_scanner(self):
-        """Stop the background tweet scanner."""
-        self._scanner_running = False
-        return {"success": True, "message": "Scanner stopped"}
+    def stop_scanner(self) -> Dict[str, Any]:
+        """
+        Stop the background tweet scanner.
+        Handles both Celery and thread-based scanners.
+        
+        Returns:
+            dict: Result
+        """
+        stopped = False
+        
+        # Stop Celery task if active
+        if self._celery_task_id:
+            try:
+                from background_tasks import revoke_task
+                revoke_task(self._celery_task_id, terminate=True)
+                logger.info("Celery task revoked: %s", self._celery_task_id)
+                stopped = True
+            except Exception as e:
+                logger.warning("Failed to revoke Celery task: %s", e)
+            finally:
+                self._celery_task_id = None
+        
+        # Stop thread-based scanner
+        if self._scanner_running:
+            self._scanner_running = False
+            stopped = True
+            logger.info("Thread scanner stopped")
+        
+        if stopped:
+            return {"success": True, "message": "Scanner stopped"}
+        else:
+            return {"success": True, "message": "Scanner was not running"}
     
     def _scanner_loop(self):
-        """Background scanner loop."""
+        """Background scanner loop (thread-based)."""
         interval = self.config.get("scan_interval_minutes", 5) * 60
         
         while self._scanner_running:
             try:
                 results = self.scan_and_process()
                 if results:
-                    print(f"🐦 Twitter: Processed {len(results)} new tweets")
+                    logger.info("Twitter: Processed %d new tweets", len(results))
             except Exception as e:
-                print(f"⚠️ Scanner error: {e}")
+                logger.error("Scanner error: %s", e)
             
             # Sleep in small intervals to allow quick shutdown
             for _ in range(int(interval)):
@@ -400,6 +528,83 @@ Gib nur den Antworttext aus, nichts anderes."""
         self._history = []
         self._save_history()
         return {"success": True, "message": "History cleared"}
+    
+    def scan_async(self) -> Dict[str, Any]:
+        """
+        Trigger an asynchronous Twitter scan.
+        Uses Celery if available, otherwise runs synchronously.
+        
+        Returns:
+            dict: Result with task ID if async, or scan results if sync
+        """
+        if not self.client:
+            return {"success": False, "error": "Twitter API not configured"}
+        
+        # Try to use Celery for async processing
+        if self._check_celery_available():
+            try:
+                from background_tasks import schedule_twitter_scan
+                
+                result = schedule_twitter_scan()
+                if result.get("scheduled"):
+                    return {
+                        "success": True,
+                        "async": True,
+                        "task_id": result.get("task_id"),
+                        "message": "Scan scheduled via Celery"
+                    }
+            except Exception as e:
+                logger.warning("Async scan failed, falling back to sync: %s", e)
+        
+        # Fall back to synchronous scan
+        try:
+            results = self.scan_and_process()
+            return {
+                "success": True,
+                "async": False,
+                "tweets_processed": len(results),
+                "results": results
+            }
+        except Exception as e:
+            logger.error("Sync scan failed: %s", e)
+            return {
+                "success": False,
+                "error": str(e)
+            }
+    
+    def process_tweet_async(self, tweet: Dict) -> Dict[str, Any]:
+        """
+        Process a single tweet asynchronously.
+        Uses Celery if available, otherwise processes synchronously.
+        
+        Args:
+            tweet: Tweet dictionary to process
+            
+        Returns:
+            dict: Result with task ID if async, or processing result if sync
+        """
+        if self._check_celery_available():
+            try:
+                from background_tasks import twitter_process_tweet
+                
+                task = twitter_process_tweet.delay(tweet)
+                return {
+                    "success": True,
+                    "async": True,
+                    "task_id": task.id,
+                    "message": "Tweet processing scheduled"
+                }
+            except Exception as e:
+                logger.warning("Async tweet processing failed: %s", e)
+        
+        # Fall back to synchronous processing
+        auto_reply = self.config.get("auto_reply", False)
+        result = self.process_tweet(tweet, auto_reply=auto_reply)
+        return {
+            "success": True,
+            "async": False,
+            "result": result
+        }
     
     def manual_reply(self, tweet_id: str, response_text: str) -> Dict:
         """
