@@ -23,7 +23,7 @@ import requests
 import psutil
 from flask import Flask, request, jsonify, send_from_directory, Response, stream_with_context
 from flask_cors import CORS
-from pydantic import BaseModel, Field, field_validator, model_validator, ConfigDict
+from pydantic import BaseModel, Field, field_validator, model_validator, ConfigDict, ValidationError as PydanticValidationError
 
 
 # ============================================================
@@ -514,8 +514,6 @@ class LLMServantApp:
         Raises:
             ConfigValidationError: If validation fails, with detailed error messages.
         """
-        from pydantic import ValidationError as PydanticValidationError
-        
         try:
             validate_config(self.config)
             logger.debug("Configuration validated successfully")
