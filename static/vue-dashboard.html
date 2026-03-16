@@ -1,0 +1,982 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🏛️ LLM Servant — Vue Dashboard</title>
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;500;600;700&family=Cormorant+Garamond:wght@400;500;600&display=swap" rel="stylesheet">
+    <!-- Vue.js 3 CDN -->
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <style>
+        :root {
+            --marble-white: #f8f6f0;
+            --marble-light: #f0ede6;
+            --marble-veins: #e8e4db;
+            --gold: #c9a227;
+            --gold-dark: #a68522;
+            --gold-light: #d4b85a;
+            --bronze: #8b6914;
+            --text-dark: #2c2419;
+            --text-light: #5c4d3d;
+            --shadow: rgba(44, 36, 25, 0.15);
+            --terminal-bg: #1a1a1a;
+            --terminal-text: #00ff00;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Cormorant Garamond', serif;
+            background: 
+                linear-gradient(135deg, transparent 25%, var(--marble-veins) 25%, var(--marble-veins) 26%, transparent 26%),
+                linear-gradient(225deg, transparent 25%, var(--marble-veins) 25%, var(--marble-veins) 26%, transparent 26%),
+                linear-gradient(45deg, transparent 25%, var(--marble-veins) 25%, var(--marble-veins) 26%, transparent 26%),
+                linear-gradient(315deg, transparent 25%, var(--marble-veins) 25%, var(--marble-veins) 26%, transparent 26%),
+                linear-gradient(to bottom, var(--marble-white), var(--marble-light));
+            background-size: 100px 100px, 100px 100px, 100px 100px, 100px 100px, 100% 100%;
+            min-height: 100vh;
+            color: var(--text-dark);
+        }
+
+        /* Roman Header */
+        header {
+            background: linear-gradient(180deg, var(--marble-white) 0%, var(--marble-light) 100%);
+            border-bottom: 4px solid var(--gold);
+            padding: 1.5rem 2rem;
+            box-shadow: 0 4px 20px var(--shadow);
+            position: relative;
+        }
+
+        header::before, header::after {
+            content: '🏛️';
+            position: absolute;
+            font-size: 2rem;
+            top: 50%;
+            transform: translateY(-50%);
+        }
+
+        header::before { left: 2rem; }
+        header::after { right: 2rem; }
+
+        .header-content {
+            text-align: center;
+        }
+
+        h1 {
+            font-family: 'Cinzel', serif;
+            font-size: 2.5rem;
+            font-weight: 700;
+            color: var(--text-dark);
+            letter-spacing: 4px;
+            text-transform: uppercase;
+            text-shadow: 1px 1px 2px var(--shadow);
+        }
+
+        .subtitle {
+            font-size: 1.1rem;
+            color: var(--text-light);
+            margin-top: 0.5rem;
+            font-style: italic;
+        }
+
+        /* Navigation */
+        .nav-tabs {
+            display: flex;
+            justify-content: center;
+            gap: 0.5rem;
+            background: var(--marble-light);
+            padding: 0.5rem;
+            border-bottom: 2px solid var(--gold);
+        }
+
+        .nav-tab {
+            padding: 0.75rem 1.5rem;
+            font-family: 'Cinzel', serif;
+            font-size: 1rem;
+            font-weight: 500;
+            color: var(--text-light);
+            background: transparent;
+            border: 2px solid transparent;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .nav-tab:hover {
+            color: var(--text-dark);
+            background: var(--marble-white);
+        }
+
+        .nav-tab.active {
+            color: var(--gold-dark);
+            background: var(--marble-white);
+            border-color: var(--gold);
+        }
+
+        /* Main Container */
+        .container {
+            max-width: 1600px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+
+        /* Panel Styles */
+        .panel {
+            background: linear-gradient(145deg, var(--marble-white) 0%, var(--marble-light) 50%, var(--marble-white) 100%);
+            border: 3px solid var(--gold);
+            border-radius: 8px;
+            box-shadow: 0 8px 32px var(--shadow);
+            overflow: hidden;
+            margin-bottom: 2rem;
+        }
+
+        .panel-header {
+            background: linear-gradient(180deg, var(--marble-light) 0%, var(--marble-veins) 100%);
+            padding: 1rem 1.5rem;
+            border-bottom: 2px solid var(--gold);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .panel-title {
+            font-family: 'Cinzel', serif;
+            font-size: 1.3rem;
+            font-weight: 600;
+            color: var(--text-dark);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .panel-body {
+            padding: 1.5rem;
+        }
+
+        /* Grid Layouts */
+        .grid-2 {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 2rem;
+        }
+
+        .grid-3 {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 1.5rem;
+        }
+
+        @media (max-width: 1024px) {
+            .grid-2, .grid-3 {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        /* Buttons */
+        .btn {
+            font-family: 'Cinzel', serif;
+            font-size: 0.95rem;
+            font-weight: 500;
+            padding: 0.75rem 1.5rem;
+            border: 2px solid var(--gold);
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .btn-primary {
+            background: linear-gradient(180deg, var(--gold-light), var(--gold));
+            color: var(--text-dark);
+        }
+
+        .btn-primary:hover {
+            background: linear-gradient(180deg, var(--gold), var(--gold-dark));
+            box-shadow: 0 4px 12px rgba(201, 162, 39, 0.4);
+        }
+
+        .btn-secondary {
+            background: var(--marble-white);
+            color: var(--text-dark);
+        }
+
+        .btn-secondary:hover {
+            background: var(--marble-light);
+        }
+
+        .btn-sm {
+            padding: 0.5rem 1rem;
+            font-size: 0.85rem;
+        }
+
+        /* Model Selector */
+        .model-selector {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 1rem;
+        }
+
+        .model-card {
+            background: var(--marble-veins);
+            border: 2px solid var(--gold);
+            border-radius: 8px;
+            padding: 1rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            min-width: 200px;
+        }
+
+        .model-card:hover {
+            box-shadow: 0 4px 12px var(--shadow);
+            transform: translateY(-2px);
+        }
+
+        .model-card.active {
+            border-color: var(--gold-dark);
+            background: var(--marble-white);
+            box-shadow: 0 0 0 3px rgba(201, 162, 39, 0.3);
+        }
+
+        .model-name {
+            font-family: 'Cinzel', serif;
+            font-weight: 600;
+            font-size: 1.1rem;
+            margin-bottom: 0.25rem;
+        }
+
+        .model-size {
+            font-size: 0.85rem;
+            color: var(--text-light);
+        }
+
+        .model-status {
+            display: inline-block;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            margin-right: 0.5rem;
+        }
+
+        .model-status.active {
+            background: #4caf50;
+            box-shadow: 0 0 8px rgba(76, 175, 80, 0.6);
+        }
+
+        /* Real-time Logs */
+        .logs-container {
+            background: var(--terminal-bg);
+            border-radius: 4px;
+            font-family: 'Monaco', 'Consolas', monospace;
+            font-size: 0.85rem;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        .log-controls {
+            display: flex;
+            gap: 1rem;
+            margin-bottom: 1rem;
+            align-items: center;
+        }
+
+        .log-filter {
+            padding: 0.5rem 1rem;
+            border: 2px solid var(--gold);
+            border-radius: 4px;
+            background: var(--marble-white);
+            font-family: inherit;
+        }
+
+        .log-entry {
+            padding: 0.5rem 1rem;
+            border-bottom: 1px solid #333;
+            display: flex;
+            gap: 1rem;
+        }
+
+        .log-entry:last-child {
+            border-bottom: none;
+        }
+
+        .log-timestamp {
+            color: #666;
+            white-space: nowrap;
+        }
+
+        .log-level {
+            font-weight: bold;
+            min-width: 70px;
+        }
+
+        .log-level.DEBUG { color: #888; }
+        .log-level.INFO { color: #00ff00; }
+        .log-level.WARNING { color: #ffa500; }
+        .log-level.ERROR { color: #ff4444; }
+
+        .log-message {
+            color: #ddd;
+            flex: 1;
+            word-break: break-word;
+        }
+
+        .log-empty {
+            padding: 2rem;
+            text-align: center;
+            color: #888;
+        }
+
+        /* Topic Cloud */
+        .topic-cloud-container {
+            text-align: center;
+            padding: 1rem;
+        }
+
+        .topic-cloud-image {
+            max-width: 100%;
+            border-radius: 8px;
+            border: 2px solid var(--gold);
+        }
+
+        .topic-stats {
+            display: flex;
+            justify-content: center;
+            gap: 2rem;
+            margin-top: 1rem;
+        }
+
+        .topic-stat {
+            text-align: center;
+        }
+
+        .topic-stat-value {
+            font-family: 'Cinzel', serif;
+            font-size: 2rem;
+            font-weight: 700;
+            color: var(--gold-dark);
+        }
+
+        .topic-stat-label {
+            font-size: 0.85rem;
+            color: var(--text-light);
+            text-transform: uppercase;
+        }
+
+        /* Topic List */
+        .topic-list {
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        .topic-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.75rem 1rem;
+            background: var(--marble-veins);
+            border: 1px solid var(--gold);
+            border-radius: 4px;
+            margin-bottom: 0.5rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .topic-item:hover {
+            background: var(--marble-white);
+            box-shadow: 0 2px 8px var(--shadow);
+        }
+
+        .topic-name {
+            font-weight: 600;
+        }
+
+        .topic-count {
+            background: var(--gold);
+            color: var(--text-dark);
+            padding: 0.2rem 0.6rem;
+            border-radius: 12px;
+            font-size: 0.85rem;
+            font-weight: 600;
+        }
+
+        /* Status Indicators */
+        .status-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            display: inline-block;
+            margin-right: 0.5rem;
+        }
+
+        .status-dot.connected {
+            background: #4caf50;
+            animation: pulse 2s infinite;
+        }
+
+        .status-dot.disconnected {
+            background: #f44336;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.6; }
+        }
+
+        /* Loading States */
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 2px solid var(--gold-light);
+            border-radius: 50%;
+            border-top-color: var(--gold);
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* Scrollbar Styling */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: var(--marble-veins);
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: var(--gold);
+            border-radius: 4px;
+        }
+
+        .logs-container::-webkit-scrollbar-track {
+            background: #333;
+        }
+
+        /* Alerts */
+        .alert {
+            padding: 1rem;
+            border-radius: 4px;
+            margin-bottom: 1rem;
+        }
+
+        .alert-success {
+            background: rgba(76, 175, 80, 0.15);
+            border: 1px solid #4caf50;
+            color: #2e7d32;
+        }
+
+        .alert-error {
+            background: rgba(244, 67, 54, 0.15);
+            border: 1px solid #f44336;
+            color: #c62828;
+        }
+
+        .fade-enter-active, .fade-leave-active {
+            transition: opacity 0.3s ease;
+        }
+
+        .fade-enter-from, .fade-leave-to {
+            opacity: 0;
+        }
+
+        /* Back link */
+        .back-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            color: var(--gold-dark);
+            text-decoration: none;
+            font-family: 'Cinzel', serif;
+            padding: 0.5rem 1rem;
+            transition: all 0.3s ease;
+        }
+
+        .back-link:hover {
+            color: var(--gold);
+        }
+    </style>
+</head>
+<body>
+    <div id="app">
+        <header>
+            <div class="header-content">
+                <h1>LLM Servant Imperium</h1>
+                <p class="subtitle">Vue.js Enhanced Dashboard • Real-time Monitoring</p>
+            </div>
+        </header>
+
+        <nav class="nav-tabs">
+            <button class="nav-tab" :class="{ active: activeTab === 'models' }" @click="activeTab = 'models'">
+                🤖 Model Selector
+            </button>
+            <button class="nav-tab" :class="{ active: activeTab === 'logs' }" @click="activeTab = 'logs'">
+                📜 Real-time Logs
+            </button>
+            <button class="nav-tab" :class="{ active: activeTab === 'knowledge' }" @click="activeTab = 'knowledge'">
+                🧠 Knowledge Memory
+            </button>
+        </nav>
+
+        <div class="container">
+            <!-- Back to main dashboard link -->
+            <a href="/dashboard" class="back-link">← Back to Main Dashboard</a>
+
+            <!-- Alerts -->
+            <transition name="fade">
+                <div v-if="alert.show" :class="['alert', `alert-${alert.type}`]">
+                    {{ alert.message }}
+                </div>
+            </transition>
+
+            <!-- Model Selector Tab -->
+            <div v-show="activeTab === 'models'">
+                <div class="panel">
+                    <div class="panel-header">
+                        <span class="panel-title">🤖 Available Models</span>
+                        <button class="btn btn-secondary btn-sm" @click="loadModels" :disabled="loadingModels">
+                            <span v-if="loadingModels" class="loading"></span>
+                            <span v-else>🔄 Refresh</span>
+                        </button>
+                    </div>
+                    <div class="panel-body">
+                        <p style="margin-bottom: 1rem; color: var(--text-light);">
+                            Select an Ollama model to use for AI responses. The active model will be highlighted.
+                        </p>
+                        
+                        <div v-if="loadingModels" style="text-align: center; padding: 2rem;">
+                            <span class="loading"></span>
+                            <p style="margin-top: 1rem; color: var(--text-light);">Loading models...</p>
+                        </div>
+                        
+                        <div v-else-if="models.length === 0" style="text-align: center; padding: 2rem; color: var(--text-light);">
+                            <p>No models found. Make sure Ollama is running and has models pulled.</p>
+                        </div>
+                        
+                        <div v-else class="model-selector">
+                            <div v-for="model in models" :key="model.name" 
+                                 class="model-card" :class="{ active: model.active }"
+                                 @click="switchModel(model.name)">
+                                <div style="display: flex; align-items: center;">
+                                    <span class="model-status" :class="{ active: model.active }"></span>
+                                    <span class="model-name">{{ model.name }}</span>
+                                </div>
+                                <div class="model-size">Size: {{ model.size }}</div>
+                                <div v-if="model.active" style="margin-top: 0.5rem; color: var(--gold-dark); font-weight: 600;">
+                                    ✓ Currently Active
+                                </div>
+                            </div>
+                        </div>
+
+                        <div v-if="switchingModel" style="margin-top: 1rem; text-align: center;">
+                            <span class="loading"></span>
+                            <span style="margin-left: 0.5rem; color: var(--text-light);">Switching model...</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Real-time Logs Tab -->
+            <div v-show="activeTab === 'logs'">
+                <div class="panel">
+                    <div class="panel-header">
+                        <span class="panel-title">
+                            <span class="status-dot" :class="logsConnected ? 'connected' : 'disconnected'"></span>
+                            📜 Real-time Server Logs
+                        </span>
+                        <div style="display: flex; gap: 0.5rem;">
+                            <button class="btn btn-secondary btn-sm" @click="toggleLogStream">
+                                {{ logsStreaming ? '⏸️ Pause' : '▶️ Resume' }}
+                            </button>
+                            <button class="btn btn-secondary btn-sm" @click="clearLogs">🗑️ Clear</button>
+                        </div>
+                    </div>
+                    <div class="panel-body">
+                        <div class="log-controls">
+                            <label>Filter by level:</label>
+                            <select class="log-filter" v-model="logFilter">
+                                <option value="">All Levels</option>
+                                <option value="DEBUG">DEBUG</option>
+                                <option value="INFO">INFO</option>
+                                <option value="WARNING">WARNING</option>
+                                <option value="ERROR">ERROR</option>
+                            </select>
+                            <span style="margin-left: auto; color: var(--text-light);">
+                                {{ filteredLogs.length }} logs
+                            </span>
+                        </div>
+                        
+                        <div class="logs-container" ref="logsContainer">
+                            <div v-if="filteredLogs.length === 0" class="log-empty">
+                                No logs to display. Server activity will appear here in real-time.
+                            </div>
+                            <div v-else>
+                                <div v-for="(log, index) in filteredLogs" :key="index" class="log-entry">
+                                    <span class="log-timestamp">{{ formatTimestamp(log.timestamp) }}</span>
+                                    <span class="log-level" :class="log.level">{{ log.level }}</span>
+                                    <span class="log-message">{{ log.message }}</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Knowledge Memory Tab -->
+            <div v-show="activeTab === 'knowledge'">
+                <div class="grid-2">
+                    <!-- Topic Cloud Visualization -->
+                    <div class="panel">
+                        <div class="panel-header">
+                            <span class="panel-title">🌐 Knowledge Topic Cloud</span>
+                            <button class="btn btn-secondary btn-sm" @click="refreshTopicCloud">
+                                🔄 Refresh
+                            </button>
+                        </div>
+                        <div class="panel-body">
+                            <div class="topic-cloud-container">
+                                <img :src="topicCloudUrl" 
+                                     alt="Topic Cloud Visualization" 
+                                     class="topic-cloud-image"
+                                     @error="handleImageError">
+                            </div>
+                            <div class="topic-stats">
+                                <div class="topic-stat">
+                                    <div class="topic-stat-value">{{ knowledgeStats.total_topics }}</div>
+                                    <div class="topic-stat-label">Topics</div>
+                                </div>
+                                <div class="topic-stat">
+                                    <div class="topic-stat-value">{{ knowledgeStats.total_insights }}</div>
+                                    <div class="topic-stat-label">Insights</div>
+                                </div>
+                                <div class="topic-stat">
+                                    <div class="topic-stat-value">{{ knowledgeStats.total_arguments }}</div>
+                                    <div class="topic-stat-label">Arguments</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Topic List -->
+                    <div class="panel">
+                        <div class="panel-header">
+                            <span class="panel-title">📋 Topics by Insight Count</span>
+                            <button class="btn btn-secondary btn-sm" @click="loadTopics" :disabled="loadingTopics">
+                                <span v-if="loadingTopics" class="loading"></span>
+                                <span v-else>🔄 Refresh</span>
+                            </button>
+                        </div>
+                        <div class="panel-body">
+                            <div v-if="loadingTopics" style="text-align: center; padding: 2rem;">
+                                <span class="loading"></span>
+                            </div>
+                            
+                            <div v-else-if="topics.length === 0" style="text-align: center; padding: 2rem; color: var(--text-light);">
+                                <p>No knowledge topics yet.</p>
+                                <p style="font-size: 0.9rem;">Upload PDFs to populate the knowledge memory.</p>
+                            </div>
+                            
+                            <div v-else class="topic-list">
+                                <div v-for="topic in topics" :key="topic.topic" 
+                                     class="topic-item" @click="showTopicDetails(topic)">
+                                    <span class="topic-name">{{ topic.topic }}</span>
+                                    <span class="topic-count">{{ topic.count }} insights</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Topic Details Modal -->
+                <div v-if="selectedTopic" class="panel" style="margin-top: 1rem;">
+                    <div class="panel-header">
+                        <span class="panel-title">📖 Topic: {{ selectedTopic.topic }}</span>
+                        <button class="btn btn-secondary btn-sm" @click="selectedTopic = null">✕ Close</button>
+                    </div>
+                    <div class="panel-body">
+                        <p style="margin-bottom: 1rem; color: var(--text-light);">
+                            Top insights for this topic:
+                        </p>
+                        <div v-for="(insight, index) in selectedTopic.insights" :key="index" 
+                             style="padding: 0.75rem; background: var(--marble-veins); border-radius: 4px; margin-bottom: 0.5rem;">
+                            <p>{{ insight.content }}</p>
+                            <small style="color: var(--text-light);">Weight: {{ insight.weight }}</small>
+                        </div>
+                        <p v-if="selectedTopic.insights.length === 0" style="color: var(--text-light); font-style: italic;">
+                            No insights preview available.
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const { createApp, ref, computed, onMounted, onUnmounted, nextTick } = Vue;
+
+        createApp({
+            setup() {
+                // Tab state
+                const activeTab = ref('models');
+
+                // Alert system
+                const alert = ref({ show: false, type: 'success', message: '' });
+                let alertTimeout = null;
+
+                const showAlert = (message, type = 'success') => {
+                    if (alertTimeout) clearTimeout(alertTimeout);
+                    alert.value = { show: true, type, message };
+                    alertTimeout = setTimeout(() => {
+                        alert.value.show = false;
+                    }, 5000);
+                };
+
+                // Models
+                const models = ref([]);
+                const loadingModels = ref(false);
+                const switchingModel = ref(false);
+
+                const loadModels = async () => {
+                    loadingModels.value = true;
+                    try {
+                        const response = await fetch('/api/models');
+                        const data = await response.json();
+                        if (data.success) {
+                            models.value = data.models;
+                        } else {
+                            showAlert(data.error || 'Failed to load models', 'error');
+                        }
+                    } catch (error) {
+                        showAlert('Error loading models: ' + error.message, 'error');
+                    } finally {
+                        loadingModels.value = false;
+                    }
+                };
+
+                const switchModel = async (modelName) => {
+                    if (switchingModel.value) return;
+                    
+                    const currentModel = models.value.find(m => m.active);
+                    if (currentModel && currentModel.name === modelName) {
+                        showAlert('This model is already active', 'success');
+                        return;
+                    }
+
+                    switchingModel.value = true;
+                    try {
+                        const response = await fetch('/api/models/switch', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ model: modelName })
+                        });
+                        const data = await response.json();
+                        
+                        if (data.success) {
+                            showAlert(data.message, 'success');
+                            await loadModels();
+                        } else {
+                            showAlert(data.error || 'Failed to switch model', 'error');
+                        }
+                    } catch (error) {
+                        showAlert('Error switching model: ' + error.message, 'error');
+                    } finally {
+                        switchingModel.value = false;
+                    }
+                };
+
+                // Logs
+                const logs = ref([]);
+                const logFilter = ref('');
+                const logsConnected = ref(false);
+                const logsStreaming = ref(true);
+                const logsContainer = ref(null);
+                let eventSource = null;
+
+                const filteredLogs = computed(() => {
+                    if (!logFilter.value) return logs.value;
+                    return logs.value.filter(log => log.level === logFilter.value);
+                });
+
+                const formatTimestamp = (isoString) => {
+                    try {
+                        return new Date(isoString).toLocaleTimeString();
+                    } catch {
+                        return isoString;
+                    }
+                };
+
+                const scrollLogsToBottom = () => {
+                    nextTick(() => {
+                        if (logsContainer.value) {
+                            logsContainer.value.scrollTop = logsContainer.value.scrollHeight;
+                        }
+                    });
+                };
+
+                const startLogStream = () => {
+                    if (eventSource) {
+                        eventSource.close();
+                    }
+
+                    eventSource = new EventSource('/api/logs/stream');
+                    
+                    eventSource.onopen = () => {
+                        logsConnected.value = true;
+                    };
+
+                    eventSource.onmessage = (event) => {
+                        try {
+                            const data = JSON.parse(event.data);
+                            
+                            if (data.type === 'connected') {
+                                logsConnected.value = true;
+                            } else if (data.type === 'log' && logsStreaming.value) {
+                                logs.value.push(data.log);
+                                // Keep buffer bounded
+                                if (logs.value.length > 200) {
+                                    logs.value = logs.value.slice(-200);
+                                }
+                                scrollLogsToBottom();
+                            }
+                        } catch (e) {
+                            console.error('Error parsing log event:', e);
+                        }
+                    };
+
+                    eventSource.onerror = () => {
+                        logsConnected.value = false;
+                        // Try to reconnect after 5 seconds
+                        setTimeout(() => {
+                            if (logsStreaming.value) {
+                                startLogStream();
+                            }
+                        }, 5000);
+                    };
+                };
+
+                const toggleLogStream = () => {
+                    logsStreaming.value = !logsStreaming.value;
+                    if (logsStreaming.value) {
+                        startLogStream();
+                    }
+                };
+
+                const clearLogs = async () => {
+                    try {
+                        await fetch('/api/logs', { method: 'DELETE' });
+                        logs.value = [];
+                        showAlert('Logs cleared', 'success');
+                    } catch (error) {
+                        showAlert('Error clearing logs: ' + error.message, 'error');
+                    }
+                };
+
+                // Knowledge Memory
+                const topics = ref([]);
+                const loadingTopics = ref(false);
+                const selectedTopic = ref(null);
+                const topicCloudUrl = ref('/api/knowledge/topiccloud?' + Date.now());
+                const knowledgeStats = ref({
+                    total_topics: 0,
+                    total_insights: 0,
+                    total_arguments: 0
+                });
+
+                const loadTopics = async () => {
+                    loadingTopics.value = true;
+                    try {
+                        const response = await fetch('/api/knowledge/topics');
+                        const data = await response.json();
+                        if (data.success) {
+                            topics.value = data.topics;
+                            knowledgeStats.value = {
+                                total_topics: data.total_topics || 0,
+                                total_insights: data.total_insights || 0,
+                                total_arguments: data.total_arguments || 0
+                            };
+                        } else {
+                            showAlert(data.error || 'Failed to load topics', 'error');
+                        }
+                    } catch (error) {
+                        showAlert('Error loading topics: ' + error.message, 'error');
+                    } finally {
+                        loadingTopics.value = false;
+                    }
+                };
+
+                const refreshTopicCloud = () => {
+                    topicCloudUrl.value = '/api/knowledge/topiccloud?' + Date.now();
+                    loadTopics();
+                };
+
+                const showTopicDetails = (topic) => {
+                    selectedTopic.value = topic;
+                };
+
+                const handleImageError = () => {
+                    console.error('Failed to load topic cloud image');
+                };
+
+                // Lifecycle
+                onMounted(() => {
+                    loadModels();
+                    loadTopics();
+                    startLogStream();
+                });
+
+                onUnmounted(() => {
+                    if (eventSource) {
+                        eventSource.close();
+                    }
+                    if (alertTimeout) {
+                        clearTimeout(alertTimeout);
+                    }
+                });
+
+                return {
+                    // Tab
+                    activeTab,
+                    
+                    // Alert
+                    alert,
+                    
+                    // Models
+                    models,
+                    loadingModels,
+                    switchingModel,
+                    loadModels,
+                    switchModel,
+                    
+                    // Logs
+                    logs,
+                    logFilter,
+                    filteredLogs,
+                    logsConnected,
+                    logsStreaming,
+                    logsContainer,
+                    formatTimestamp,
+                    toggleLogStream,
+                    clearLogs,
+                    
+                    // Knowledge
+                    topics,
+                    loadingTopics,
+                    selectedTopic,
+                    topicCloudUrl,
+                    knowledgeStats,
+                    loadTopics,
+                    refreshTopicCloud,
+                    showTopicDetails,
+                    handleImageError
+                };
+            }
+        }).mount('#app');
+    </script>
+</body>
+</html>
