@@ -2623,12 +2623,7 @@
                 }
                 
                 // Update low memory badge from health response
-                const lowMemBadge = document.getElementById('low-memory-badge');
-                if (health.low_memory_mode) {
-                    lowMemBadge.style.display = 'inline';
-                } else {
-                    lowMemBadge.style.display = 'none';
-                }
+                updateLowMemoryBadge(health.low_memory_mode);
             } catch (error) {
                 document.getElementById('llm-status').className = 'status-dot error';
                 document.getElementById('llm-status-text').textContent = 'Server not reachable';
@@ -2648,14 +2643,18 @@
                 }
                 
                 // Update low memory badge
-                const lowMemBadge = document.getElementById('low-memory-badge');
-                if (stats.low_memory_mode) {
-                    lowMemBadge.style.display = 'inline';
-                } else {
-                    lowMemBadge.style.display = 'none';
-                }
+                updateLowMemoryBadge(stats.low_memory_mode);
             } catch (error) {
                 document.getElementById('ram-usage').textContent = 'N/A';
+            }
+        }
+
+        function updateLowMemoryBadge(isLowMemoryMode) {
+            const lowMemBadge = document.getElementById('low-memory-badge');
+            if (isLowMemoryMode) {
+                lowMemBadge.style.display = 'inline';
+            } else {
+                lowMemBadge.style.display = 'none';
             }
         }
 

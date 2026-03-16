@@ -356,6 +356,8 @@ class LLMServantApp:
         if self._llm is None:
             from langchain_ollama import OllamaLLM
             # Apply low_memory_mode settings if enabled
+            # Note: Using self.config directly here instead of get_effective_num_ctx()
+            # to avoid potential circular dependency during initialization
             if self.config.get("low_memory_mode", False):
                 num_ctx = 1024
             else:
