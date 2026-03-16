@@ -75,6 +75,21 @@ get_shell_config() {
     esac
 }
 
+# Helper function for right-padding text in box display
+# Usage: pad_right "text" total_width
+# Returns padding spaces needed to fill total_width
+pad_right() {
+    local text="$1"
+    local width="$2"
+    local len=${#text}
+    local padding=$((width - len))
+    # Ensure non-negative padding
+    if [[ $padding -lt 0 ]]; then
+        padding=0
+    fi
+    printf '%*s' "$padding" ''
+}
+
 # Install Ollama based on OS
 install_ollama() {
     echo "▸ Ollama Installation/Update..."
@@ -171,11 +186,13 @@ check_python() {
 
 # Show header
 show_header() {
+    local os_padding
+    os_padding=$(pad_right "$OS" 36)
     echo ""
     echo "╔══════════════════════════════════════════════════════╗"
     echo "║     🧠 LOCAL LLM DIENER v2 — Setup                  ║"
     echo "║     Uncensored · Lokal · Schnell                     ║"
-    echo "║     OS: $OS $(printf '%*s' $((36 - ${#OS})) '')║"
+    echo "║     OS: ${OS}${os_padding}║"
     echo "╚══════════════════════════════════════════════════════╝"
     echo ""
 }
@@ -250,7 +267,26 @@ do_install() {
 EOF
         echo "  ✓ config.json erstellt"
     else
-        echo "  ✓ config.json existiert bereits (übersprungen)"
+        # Check if model in config.json differs from selected model
+        EXISTING_MODEL=$(grep -o '"model": *"[^"]*"' config.json | head -1 | cut -d'"' -f4)
+        if [ "$EXISTING_MODEL" != "$MODEL" ]; then
+            echo "  ⚠️  config.json existiert mit Modell: $EXISTING_MODEL"
+            echo "      Gewähltes Modell: $MODEL"
+            read -p "  Modell in config.json aktualisieren? [j/N]: " UPDATE_MODEL
+            if [[ "$UPDATE_MODEL" == "j" || "$UPDATE_MODEL" == "J" ]]; then
+                # Use sed to update the model - cross-platform compatible
+                if [[ "$OS" == "macos" ]]; then
+                    sed -i '' "s|\"model\": *\"[^\"]*\"|\"model\": \"$MODEL\"|" config.json
+                else
+                    sed -i "s|\"model\": *\"[^\"]*\"|\"model\": \"$MODEL\"|" config.json
+                fi
+                echo "  ✓ Modell in config.json aktualisiert"
+            else
+                echo "  ⏭️  config.json unverändert gelassen"
+            fi
+        else
+            echo "  ✓ config.json existiert bereits (Modell: $EXISTING_MODEL)"
+        fi
     fi
 
     # --- 4. Python ---
@@ -335,6 +371,8 @@ EOF
     # --- Ollama Performance-Tuning ---
     setup_performance_env
 
+    local model_padding
+    model_padding=$(pad_right "$MODEL" 22)
     echo ""
     echo "╔══════════════════════════════════════════════════════╗"
     echo "║  ✓ Setup abgeschlossen!                             ║"
@@ -351,7 +389,7 @@ EOF
     echo "║      python3 server.py                               ║"
     echo "║                                                      ║"
     echo "║  Browser:  http://localhost:7777                     ║"
-    echo "║  Modell:   $MODEL $(printf '%*s' $((22 - ${#MODEL})) '')║"
+    echo "║  Modell:   ${MODEL}${model_padding}║"
     echo "╚══════════════════════════════════════════════════════╝"
     echo ""
 }
@@ -360,10 +398,12 @@ EOF
 #  Update Function
 # ============================================================
 do_update() {
+    local os_padding
+    os_padding=$(pad_right "$OS" 36)
     echo ""
     echo "╔══════════════════════════════════════════════════════╗"
     echo "║     🔄 LOCAL LLM DIENER v2 — Update                 ║"
-    echo "║     OS: $OS $(printf '%*s' $((36 - ${#OS})) '')║"
+    echo "║     OS: ${OS}${os_padding}║"
     echo "╚══════════════════════════════════════════════════════╝"
     echo ""
 
@@ -448,16 +488,20 @@ setup_performance_env() {
     SHELL_CONFIG=$(get_shell_config)
     local SHELL_NAME
     SHELL_NAME=$(basename "$SHELL_CONFIG")
+    local shell_padding
+    shell_padding=$(pad_right "$SHELL_NAME" 23)
+    local cpu_padding
+    cpu_padding=$(pad_right "$CPU_COUNT" 25)
     
     echo ""
     echo "╔══════════════════════════════════════════════════════╗"
-    echo "║  PERFORMANCE-TIPPS für ~/$SHELL_NAME: $(printf '%*s' $((23 - ${#SHELL_NAME})) '')║"
+    echo "║  PERFORMANCE-TIPPS für ~/${SHELL_NAME}:${shell_padding}║"
     echo "║                                                      ║"
     echo "║  export OLLAMA_NUM_GPU=1                             ║"
     echo "║  export OLLAMA_GPU_LAYERS=35                         ║"
     echo "║  export OLLAMA_KV_CACHE_TYPE=q8_0                    ║"
     echo "║  export OLLAMA_FLASH_ATTENTION=1                     ║"
-    echo "║  export OLLAMA_NUM_THREADS=$CPU_COUNT $(printf '%*s' $((25 - ${#CPU_COUNT})) '')║"
+    echo "║  export OLLAMA_NUM_THREADS=${CPU_COUNT}${cpu_padding}║"
     echo "╚══════════════════════════════════════════════════════╝"
     echo ""
     read -p "  Soll ich diese automatisch in ~/$SHELL_NAME eintragen? [j/N]: " ADD_ENV
@@ -482,11 +526,13 @@ setup_performance_env() {
 #  Main Menu
 # ============================================================
 show_menu() {
+    local os_padding
+    os_padding=$(pad_right "$OS" 36)
     echo ""
     echo "╔══════════════════════════════════════════════════════╗"
     echo "║     🧠 LOCAL LLM DIENER v2                          ║"
     echo "║     Uncensored · Lokal · Schnell                     ║"
-    echo "║     OS: $OS $(printf '%*s' $((36 - ${#OS})) '')║"
+    echo "║     OS: ${OS}${os_padding}║"
     echo "╚══════════════════════════════════════════════════════╝"
     echo ""
     echo "  Optionen:"
