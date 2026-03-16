@@ -47,5 +47,10 @@
     "respond_to_direct": true,
     "auto_respond": true,
     "task": "Respond helpfully and engagingly to messages. Use your memory about users to give personalized responses."
+  },
+  "celery": {
+    "enabled": false,
+    "broker_url": "redis://localhost:6379/0",
+    "result_backend": "redis://localhost:6379/0"
   }
 }

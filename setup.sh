@@ -111,9 +111,36 @@ pip install -q \
 
 echo "  ✓ Pakete installiert"
 
-# --- 5. Verzeichnisse ---
+# --- 5a. Optional: Celery for Background Tasks ---
 echo ""
-echo "▸ [5/5] Verzeichnisse..."
+echo "▸ [5a] Celery für Background-Tasks (optional)..."
+echo ""
+echo "  Celery ermöglicht asynchrone Verarbeitung von:"
+echo "    - Twitter-Scanning"
+echo "    - LLM-Responses"
+echo "    - Scheduled Tasks"
+echo ""
+read -p "  Celery installieren? [j/N]: " INSTALL_CELERY
+if [[ "$INSTALL_CELERY" == "j" || "$INSTALL_CELERY" == "J" ]]; then
+    pip install -q celery[redis] redis
+    echo "  ✓ Celery installiert"
+    echo ""
+    echo "  ⚠️  Redis muss separat installiert werden:"
+    echo "      macOS:  brew install redis && brew services start redis"
+    echo "      Linux:  apt-get install redis-server"
+    echo ""
+    echo "  Celery-Worker starten (in separatem Terminal):"
+    echo "      celery -A celery_app worker --loglevel=info"
+    echo ""
+    echo "  Celery-Beat für periodische Tasks (in separatem Terminal):"
+    echo "      celery -A celery_app beat --loglevel=info"
+else
+    echo "  ⏭️  Celery übersprungen (kann später nachinstalliert werden)"
+fi
+
+# --- 5b. Verzeichnisse ---
+echo ""
+echo "▸ [5b] Verzeichnisse..."
 mkdir -p uploads chromadb_data memory static twitter_data
 echo "  ✓ Fertig"
 

@@ -1773,6 +1773,117 @@ def twitter_search():
         return jsonify({"error": str(e)}), 500
 
 
+@app.route("/api/twitter/scan/async", methods=["POST"])
+def twitter_scan_async():
+    """Trigger an asynchronous Twitter scan using Celery if available."""
+    try:
+        handler = get_twitter_handler()
+        if not handler.get_status().get("configured"):
+            return jsonify({"error": "Twitter API not configured"}), 400
+        
+        result = handler.scan_async()
+        if result.get("async"):
+            logger.info("Async Twitter scan scheduled, task_id: %s", result.get("task_id"))
+        else:
+            logger.info("Sync Twitter scan completed, processed %d tweets", result.get("tweets_processed", 0))
+        
+        return jsonify(result)
+    except ImportError as e:
+        logger.warning("Required module not available: %s", e)
+        return jsonify({"error": str(e)}), 500
+    except Exception as e:
+        log_exception(e, "Error triggering async Twitter scan")
+        return jsonify({"error": str(e)}), 500
+
+
+# ============================================================
+#  BACKGROUND TASKS / CELERY API ROUTES
+# ============================================================
+
+@app.route("/api/celery/status", methods=["GET"])
+def celery_status():
+    """Get Celery background task system status."""
+    try:
+        from celery_app import get_celery_status
+        status = get_celery_status()
+        return jsonify(status)
+    except ImportError:
+        return jsonify({
+            "installed": False,
+            "enabled": False,
+            "error": "celery not installed"
+        })
+    except Exception as e:
+        log_exception(e, "Error getting Celery status")
+        return jsonify({
+            "installed": False,
+            "error": str(e)
+        })
+
+
+@app.route("/api/celery/config", methods=["GET"])
+def get_celery_config_route():
+    """Get current Celery configuration."""
+    celery_conf = CONFIG.get("celery", {})
+    return jsonify({
+        "enabled": celery_conf.get("enabled", False),
+        "broker_url_set": bool(celery_conf.get("broker_url")),
+        "result_backend_set": bool(celery_conf.get("result_backend"))
+    })
+
+
+@app.route("/api/celery/config", methods=["PUT"])
+def update_celery_config():
+    """Update Celery configuration."""
+    data = request.json
+    app_instance = LLMServantApp.get_instance()
+    
+    celery_conf = app_instance.config.get("celery", {})
+    
+    # Update allowed fields
+    allowed = ["enabled", "broker_url", "result_backend"]
+    for key in allowed:
+        if key in data:
+            celery_conf[key] = data[key]
+    
+    app_instance.config["celery"] = celery_conf
+    app_instance.save_config()
+    
+    logger.info("Celery configuration updated")
+    return jsonify({"success": True, "config": {
+        "enabled": celery_conf.get("enabled", False)
+    }})
+
+
+@app.route("/api/tasks/<task_id>", methods=["GET"])
+def get_task_status_route(task_id):
+    """Get the status of a background task."""
+    try:
+        from background_tasks import get_task_status
+        status = get_task_status(task_id)
+        return jsonify(status)
+    except ImportError:
+        return jsonify({"error": "Background tasks module not available"}), 500
+    except Exception as e:
+        log_exception(e, f"Error getting task status for {task_id}")
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/tasks/<task_id>", methods=["DELETE"])
+def revoke_task_route(task_id):
+    """Cancel/revoke a pending background task."""
+    try:
+        from background_tasks import revoke_task
+        terminate = request.args.get("terminate", "false").lower() == "true"
+        result = revoke_task(task_id, terminate=terminate)
+        return jsonify(result)
+    except ImportError:
+        return jsonify({"error": "Background tasks module not available"}), 500
+    except Exception as e:
+        log_exception(e, f"Error revoking task {task_id}")
+        return jsonify({"error": str(e)}), 500
+
+
 # ============================================================
 #  TELEGRAM API ROUTES
 # ============================================================
@@ -2210,6 +2321,22 @@ if __name__ == "__main__":
     
     telegram_configured = bool(CONFIG.get("telegram", {}).get("bot_token"))
     print(f"   Telegram:    {'✓ Configured' if telegram_configured else '✗ Not configured'}")
+    
+    # Celery/Background Tasks status
+    try:
+        from celery_app import get_celery_status
+        celery_status = get_celery_status()
+        if celery_status.get("installed") and celery_status.get("enabled"):
+            workers = celery_status.get("workers_active", 0)
+            print(f"   Celery:      ✓ Enabled ({workers} worker{'s' if workers != 1 else ''} active)")
+        elif celery_status.get("installed"):
+            print(f"   Celery:      ✗ Installed but disabled")
+        else:
+            print(f"   Celery:      ✗ Not installed")
+    except ImportError:
+        print(f"   Celery:      ✗ Not installed")
+    except Exception:
+        print(f"   Celery:      ✗ Error checking status")
     print()
 
     # Unload unused models on startup
