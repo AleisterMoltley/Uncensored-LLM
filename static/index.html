@@ -769,6 +769,181 @@
             color: #2e7d32;
         }
 
+        /* Taboo Selector Styles */
+        .taboo-selector {
+            background: linear-gradient(145deg, var(--marble-white) 0%, var(--marble-light) 50%, var(--marble-white) 100%);
+            border: 3px solid #8b3a3a;
+            margin: 0 2rem 1.5rem 2rem;
+            border-radius: 8px;
+            box-shadow: 0 8px 32px var(--shadow);
+            overflow: hidden;
+        }
+
+        .taboo-header {
+            background: linear-gradient(180deg, #f5e6e6 0%, #f0d4d4 100%);
+            padding: 1rem 1.5rem;
+            border-bottom: 2px solid #8b3a3a;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: pointer;
+            transition: background 0.3s ease;
+        }
+
+        .taboo-header:hover {
+            background: linear-gradient(180deg, #f0d4d4 0%, #e8c4c4 100%);
+        }
+
+        .taboo-title {
+            font-family: 'Cinzel', serif;
+            font-size: 1.2rem;
+            font-weight: 600;
+            color: #6b2a2a;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .taboo-count-badge {
+            background: linear-gradient(180deg, #d9534f, #c9302c);
+            color: white;
+            padding: 0.3rem 0.8rem;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            font-weight: 500;
+            font-family: 'Cormorant Garamond', serif;
+        }
+
+        .taboo-toggle {
+            color: #8b3a3a;
+            font-size: 1rem;
+            transition: transform 0.3s ease;
+        }
+
+        .taboo-selector.expanded .taboo-toggle {
+            transform: rotate(180deg);
+        }
+
+        .taboo-body {
+            padding: 1.5rem;
+        }
+
+        .taboo-description {
+            color: var(--text-light);
+            margin-bottom: 1rem;
+            font-size: 0.95rem;
+        }
+
+        .taboo-add-form {
+            display: flex;
+            gap: 0.5rem;
+            margin-bottom: 1rem;
+        }
+
+        .taboo-add-form input {
+            flex: 1;
+            padding: 0.75rem;
+            border: 2px solid #8b3a3a;
+            border-radius: 4px;
+            font-family: 'Cormorant Garamond', serif;
+            font-size: 1rem;
+        }
+
+        .taboo-add-form input:focus {
+            outline: none;
+            border-color: #c9302c;
+            box-shadow: 0 0 8px rgba(139, 58, 58, 0.3);
+        }
+
+        .taboo-list {
+            max-height: 300px;
+            overflow-y: auto;
+        }
+
+        .taboo-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.75rem 1rem;
+            background: #f5f0f0;
+            border: 1px solid #d4b8b8;
+            border-radius: 4px;
+            margin-bottom: 0.5rem;
+            transition: all 0.3s ease;
+        }
+
+        .taboo-item:hover {
+            background: #f0e8e8;
+            box-shadow: 0 2px 8px rgba(139, 58, 58, 0.15);
+        }
+
+        .taboo-item.inactive {
+            opacity: 0.5;
+            background: #f8f8f8;
+            border-color: #ddd;
+        }
+
+        .taboo-item-content {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            flex: 1;
+        }
+
+        .taboo-item-icon {
+            font-size: 1.2rem;
+        }
+
+        .taboo-item-text {
+            font-size: 0.95rem;
+            color: var(--text-dark);
+        }
+
+        .taboo-item.inactive .taboo-item-text {
+            text-decoration: line-through;
+            color: var(--text-light);
+        }
+
+        .taboo-item-category {
+            font-size: 0.75rem;
+            color: #8b3a3a;
+            background: rgba(139, 58, 58, 0.1);
+            padding: 0.2rem 0.5rem;
+            border-radius: 4px;
+            margin-left: 0.5rem;
+        }
+
+        .taboo-item-actions {
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        .taboo-btn {
+            background: transparent;
+            border: none;
+            cursor: pointer;
+            font-size: 1rem;
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
+            transition: all 0.3s ease;
+        }
+
+        .taboo-btn:hover {
+            background: rgba(139, 58, 58, 0.1);
+        }
+
+        .taboo-btn-delete:hover {
+            background: rgba(220, 53, 69, 0.15);
+            color: #dc3545;
+        }
+
+        .taboo-empty {
+            text-align: center;
+            padding: 2rem;
+            color: var(--text-light);
+            font-style: italic;
+        }
+
         /* Modal Styles */
         .modal-overlay {
             position: fixed;
@@ -900,6 +1075,46 @@
                         </button>
                     </div>
                 </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Collapsible Taboo Selector -->
+    <div class="taboo-selector" id="taboo-selector">
+        <div class="taboo-header" onclick="toggleTabooSelector()">
+            <span class="taboo-title">
+                <span>🚫</span> Tabu-Einstellungen
+                <span class="taboo-count-badge" id="taboo-count-badge">0 Tabus</span>
+            </span>
+            <span class="taboo-toggle" id="taboo-toggle">▼</span>
+        </div>
+        <div class="taboo-body" id="taboo-body" style="display: none;">
+            <p class="taboo-description">
+                Auch ein unzensierter Bot kann persönliche Grenzen haben. Definiere hier Themen oder Verhaltensweisen, 
+                die der Bot NIEMALS behandeln soll — auch wenn er sonst keine Filter hat.
+            </p>
+            
+            <div class="taboo-add-form">
+                <input type="text" id="taboo-input" placeholder="Neues Tabu eingeben (z.B. 'Diskussionen über meine Familie')" onkeypress="if(event.key==='Enter'){addTaboo();event.preventDefault();}">
+                <select id="taboo-category" style="padding: 0.75rem; border: 2px solid #8b3a3a; border-radius: 4px; font-family: 'Cormorant Garamond', serif;">
+                    <option value="general">Allgemein</option>
+                    <option value="topic">Thema</option>
+                    <option value="content">Inhalt</option>
+                    <option value="behavior">Verhalten</option>
+                </select>
+                <button class="btn btn-danger" onclick="addTaboo()">➕ Hinzufügen</button>
+            </div>
+            
+            <div class="taboo-list" id="taboo-list">
+                <div class="taboo-empty">
+                    <p>🔓 Keine Tabus definiert</p>
+                    <p style="font-size: 0.85rem; margin-top: 0.5rem;">Der Bot ist vollständig uneingeschränkt.</p>
+                </div>
+            </div>
+            
+            <div style="margin-top: 1rem; display: flex; justify-content: flex-end; gap: 0.5rem;">
+                <button class="btn btn-secondary btn-sm" onclick="refreshTaboos()">🔄 Aktualisieren</button>
+                <button class="btn btn-danger btn-sm" onclick="clearAllTaboos()" id="clear-all-taboos-btn" style="display: none;">🗑️ Alle löschen</button>
             </div>
         </div>
     </div>
@@ -1450,6 +1665,191 @@
                 addTerminalLine(`Fehler: ${error.message}`, 'error');
             }
         });
+
+        // ============================================================
+        // Taboo Selector Functions
+        // ============================================================
+        function toggleTabooSelector() {
+            const selector = document.getElementById('taboo-selector');
+            const body = document.getElementById('taboo-body');
+            
+            if (body.style.display === 'none') {
+                body.style.display = 'block';
+                selector.classList.add('expanded');
+                loadTaboos();
+            } else {
+                body.style.display = 'none';
+                selector.classList.remove('expanded');
+            }
+        }
+
+        async function loadTaboos() {
+            try {
+                const response = await fetch('/api/taboos');
+                const data = await response.json();
+                
+                if (data.error) {
+                    console.error('Error loading taboos:', data.error);
+                    return;
+                }
+                
+                renderTaboos(data.taboos);
+                updateTabooBadge(data.statistics);
+            } catch (error) {
+                console.error('Error loading taboos:', error);
+            }
+        }
+
+        function renderTaboos(taboos) {
+            const tabooList = document.getElementById('taboo-list');
+            const clearAllBtn = document.getElementById('clear-all-taboos-btn');
+            
+            if (!taboos || taboos.length === 0) {
+                tabooList.innerHTML = `
+                    <div class="taboo-empty">
+                        <p>🔓 Keine Tabus definiert</p>
+                        <p style="font-size: 0.85rem; margin-top: 0.5rem;">Der Bot ist vollständig uneingeschränkt.</p>
+                    </div>
+                `;
+                clearAllBtn.style.display = 'none';
+                return;
+            }
+            
+            clearAllBtn.style.display = 'inline-block';
+            
+            tabooList.innerHTML = taboos.map(taboo => `
+                <div class="taboo-item ${taboo.active ? '' : 'inactive'}" data-id="${taboo.id}">
+                    <div class="taboo-item-content">
+                        <span class="taboo-item-icon">${taboo.active ? '🚫' : '⭕'}</span>
+                        <span class="taboo-item-text">${escapeHtml(taboo.description)}</span>
+                        <span class="taboo-item-category">${escapeHtml(taboo.category)}</span>
+                    </div>
+                    <div class="taboo-item-actions">
+                        <button class="taboo-btn" onclick="toggleTaboo('${taboo.id}')" title="${taboo.active ? 'Deaktivieren' : 'Aktivieren'}">
+                            ${taboo.active ? '⏸️' : '▶️'}
+                        </button>
+                        <button class="taboo-btn taboo-btn-delete" onclick="deleteTaboo('${taboo.id}')" title="Löschen">
+                            🗑️
+                        </button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function updateTabooBadge(stats) {
+            const badge = document.getElementById('taboo-count-badge');
+            if (stats) {
+                badge.textContent = `${stats.active_taboos} aktiv / ${stats.total_taboos} gesamt`;
+            } else {
+                badge.textContent = '0 Tabus';
+            }
+        }
+
+        async function addTaboo() {
+            const input = document.getElementById('taboo-input');
+            const categorySelect = document.getElementById('taboo-category');
+            const description = input.value.trim();
+            const category = categorySelect.value;
+            
+            if (!description) {
+                alert('Bitte gib eine Beschreibung für das Tabu ein.');
+                return;
+            }
+            
+            try {
+                const response = await fetch('/api/taboos', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ description, category })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    input.value = '';
+                    loadTaboos();
+                    addTerminalLine(`Tabu hinzugefügt: ${description}`, 'action');
+                } else {
+                    alert('Fehler: ' + (data.error || 'Unbekannter Fehler'));
+                }
+            } catch (error) {
+                console.error('Error adding taboo:', error);
+                alert('Fehler beim Hinzufügen des Tabus.');
+            }
+        }
+
+        async function deleteTaboo(tabooId) {
+            if (!confirm('Dieses Tabu wirklich löschen?')) {
+                return;
+            }
+            
+            try {
+                const response = await fetch(`/api/taboos/${tabooId}`, {
+                    method: 'DELETE'
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    loadTaboos();
+                    addTerminalLine('Tabu gelöscht', 'action');
+                } else {
+                    alert('Fehler: ' + (data.error || 'Tabu nicht gefunden'));
+                }
+            } catch (error) {
+                console.error('Error deleting taboo:', error);
+                alert('Fehler beim Löschen des Tabus.');
+            }
+        }
+
+        async function toggleTaboo(tabooId) {
+            try {
+                const response = await fetch(`/api/taboos/${tabooId}/toggle`, {
+                    method: 'POST'
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    loadTaboos();
+                    addTerminalLine('Tabu-Status geändert', 'action');
+                } else {
+                    alert('Fehler: ' + (data.error || 'Tabu nicht gefunden'));
+                }
+            } catch (error) {
+                console.error('Error toggling taboo:', error);
+                alert('Fehler beim Ändern des Tabu-Status.');
+            }
+        }
+
+        async function clearAllTaboos() {
+            if (!confirm('ALLE Tabus wirklich löschen? Diese Aktion kann nicht rückgängig gemacht werden.')) {
+                return;
+            }
+            
+            try {
+                const response = await fetch('/api/taboos', {
+                    method: 'DELETE'
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    loadTaboos();
+                    addTerminalLine('Alle Tabus gelöscht', 'action');
+                } else {
+                    alert('Fehler: ' + (data.error || 'Unbekannter Fehler'));
+                }
+            } catch (error) {
+                console.error('Error clearing taboos:', error);
+                alert('Fehler beim Löschen aller Tabus.');
+            }
+        }
+
+        function refreshTaboos() {
+            loadTaboos();
+            addTerminalLine('Tabus aktualisiert', 'thought');
+        }
 
         // ============================================================
         // Terminal Functions
@@ -2255,6 +2655,7 @@
         document.addEventListener('DOMContentLoaded', () => {
             checkHealth();
             loadPersonalities();
+            loadTabooStats();  // Load taboo count for badge
             twitterRefreshStatus();
             loadTwitterConfig();
             loadTwitterHistory();
@@ -2270,6 +2671,17 @@
             
             addTerminalLine('Dashboard initialisiert. Ave Caesar!', 'response');
         });
+
+        // Load taboo statistics for badge display
+        async function loadTabooStats() {
+            try {
+                const response = await fetch('/api/taboos/stats');
+                const stats = await response.json();
+                updateTabooBadge(stats);
+            } catch (error) {
+                console.error('Error loading taboo stats:', error);
+            }
+        }
     </script>
 </body>
 </html>
