@@ -10,6 +10,7 @@ LOCAL LLM SERVANT v2 — Optimized RAG Server
 import os
 import json
 import uuid
+import time
 import hashlib
 import logging
 import subprocess
@@ -867,6 +868,12 @@ def index():
 @app.route("/dashboard")
 def dashboard():
     return send_from_directory("static", "index.html")
+
+
+@app.route("/vue-dashboard")
+def vue_dashboard():
+    """Serve the Vue.js enhanced dashboard."""
+    return send_from_directory("static", "vue-dashboard.html")
 
 
 @app.route("/api/upload", methods=["POST"])
@@ -2305,6 +2312,388 @@ def get_taboo_stats():
         return jsonify({"error": str(e)}), 500
     except Exception as e:
         log_exception(e, "Unexpected error getting taboo statistics")
+        return jsonify({"error": str(e)}), 500
+
+
+# ============================================================
+#  MODEL MANAGEMENT API ROUTES
+# ============================================================
+
+@app.route("/api/models", methods=["GET"])
+def list_models():
+    """List available Ollama models."""
+    try:
+        result = subprocess.run(
+            ["ollama", "list"],
+            capture_output=True,
+            text=True,
+            timeout=10
+        )
+        
+        if result.returncode != 0:
+            return jsonify({
+                "error": "Failed to list models",
+                "details": result.stderr
+            }), 500
+        
+        # Parse ollama list output
+        lines = result.stdout.strip().split('\n')
+        models = []
+        
+        # Skip header line
+        for line in lines[1:]:
+            if line.strip():
+                parts = line.split()
+                if len(parts) >= 1:
+                    model_name = parts[0]
+                    model_size = parts[1] if len(parts) > 1 else "unknown"
+                    models.append({
+                        "name": model_name,
+                        "size": model_size,
+                        "active": model_name == CONFIG["model"]
+                    })
+        
+        return jsonify({
+            "success": True,
+            "models": models,
+            "active_model": CONFIG["model"]
+        })
+        
+    except subprocess.TimeoutExpired:
+        log_exception(subprocess.TimeoutExpired("ollama list", 10), "Timeout listing models")
+        return jsonify({"error": "Timeout listing models"}), 500
+    except FileNotFoundError:
+        return jsonify({
+            "error": "Ollama not installed or not in PATH"
+        }), 500
+    except Exception as e:
+        log_exception(e, "Error listing models")
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/models/switch", methods=["POST"])
+def switch_model():
+    """Switch the active LLM model."""
+    data = request.json
+    model_name = data.get("model")
+    
+    if not model_name:
+        return jsonify({"error": "model name required"}), 400
+    
+    try:
+        # Verify model exists
+        result = subprocess.run(
+            ["ollama", "list"],
+            capture_output=True,
+            text=True,
+            timeout=10
+        )
+        
+        if result.returncode != 0:
+            return jsonify({"error": "Failed to verify model"}), 500
+        
+        available_models = []
+        lines = result.stdout.strip().split('\n')[1:]
+        for line in lines:
+            if line.strip():
+                parts = line.split()
+                if parts:
+                    available_models.append(parts[0])
+        
+        if model_name not in available_models:
+            return jsonify({
+                "error": f"Model '{model_name}' not found",
+                "available_models": available_models
+            }), 404
+        
+        # Update config
+        app_instance = LLMServantApp.get_instance()
+        old_model = app_instance.config["model"]
+        app_instance.config["model"] = model_name
+        app_instance.save_config()
+        app_instance.reset_llm()
+        
+        # Unload old model from RAM
+        try:
+            requests.post(
+                "http://localhost:11434/api/generate",
+                json={"model": old_model, "keep_alive": 0},
+                timeout=5
+            )
+        except requests.exceptions.RequestException:
+            pass  # Non-critical if unload fails
+        
+        logger.info("Switched model from %s to %s", old_model, model_name)
+        
+        return jsonify({
+            "success": True,
+            "message": f"Switched from {old_model} to {model_name}",
+            "old_model": old_model,
+            "new_model": model_name
+        })
+        
+    except subprocess.TimeoutExpired:
+        return jsonify({"error": "Timeout verifying model"}), 500
+    except Exception as e:
+        log_exception(e, "Error switching model")
+        return jsonify({"error": str(e)}), 500
+
+
+# ============================================================
+#  REAL-TIME LOGS API (Server-Sent Events)
+# ============================================================
+
+# In-memory log buffer for real-time streaming
+_log_buffer: List[Dict[str, Any]] = []
+_log_buffer_max = 100
+
+
+class DashboardLogHandler(logging.Handler):
+    """Custom log handler that stores logs for dashboard streaming."""
+    
+    def emit(self, record: logging.LogRecord) -> None:
+        global _log_buffer
+        
+        log_entry = {
+            "timestamp": datetime.now().isoformat(),
+            "level": record.levelname,
+            "message": record.getMessage(),
+            "logger": record.name,
+            "module": record.module
+        }
+        
+        _log_buffer.append(log_entry)
+        
+        # Keep buffer bounded
+        if len(_log_buffer) > _log_buffer_max:
+            _log_buffer = _log_buffer[-_log_buffer_max:]
+
+
+# Install the dashboard log handler
+_dashboard_handler = DashboardLogHandler()
+_dashboard_handler.setLevel(logging.DEBUG)
+logging.getLogger("llm_servant").addHandler(_dashboard_handler)
+
+
+@app.route("/api/logs", methods=["GET"])
+def get_logs():
+    """Get recent log entries."""
+    limit = request.args.get("limit", 50, type=int)
+    level = request.args.get("level", None)
+    
+    logs = _log_buffer.copy()
+    
+    if level:
+        logs = [l for l in logs if l["level"] == level.upper()]
+    
+    return jsonify({
+        "success": True,
+        "logs": logs[-limit:],
+        "total": len(_log_buffer)
+    })
+
+
+@app.route("/api/logs/stream")
+def stream_logs():
+    """Stream logs in real-time via Server-Sent Events."""
+    def generate():
+        last_idx = len(_log_buffer)
+        last_heartbeat = time.time()
+        heartbeat_interval = 10  # seconds
+        poll_interval = 1.0  # seconds
+        
+        # Send initial connection message
+        yield f"data: {json.dumps({'type': 'connected', 'timestamp': datetime.now().isoformat()})}\n\n"
+        
+        while True:
+            time.sleep(poll_interval)
+            
+            # Check for new logs
+            current_len = len(_log_buffer)
+            if current_len > last_idx:
+                new_logs = _log_buffer[last_idx:current_len]
+                for log in new_logs:
+                    yield f"data: {json.dumps({'type': 'log', 'log': log})}\n\n"
+                last_idx = current_len
+            
+            # Send heartbeat at the specified interval to keep connection alive
+            current_time = time.time()
+            if current_time - last_heartbeat >= heartbeat_interval:
+                yield f"data: {json.dumps({'type': 'heartbeat', 'timestamp': datetime.now().isoformat()})}\n\n"
+                last_heartbeat = current_time
+    
+    return Response(
+        stream_with_context(generate()),
+        mimetype='text/event-stream',
+        headers={
+            'Cache-Control': 'no-cache',
+            'Connection': 'keep-alive',
+            'X-Accel-Buffering': 'no'
+        }
+    )
+
+
+@app.route("/api/logs", methods=["DELETE"])
+def clear_logs():
+    """Clear the log buffer."""
+    global _log_buffer
+    _log_buffer = []
+    logger.info("Log buffer cleared")
+    return jsonify({"success": True, "message": "Logs cleared"})
+
+
+# ============================================================
+#  KNOWLEDGE MEMORY VISUALIZATION API
+# ============================================================
+
+@app.route("/api/knowledge/topics", methods=["GET"])
+def get_knowledge_topics():
+    """Get knowledge topics with insight counts for visualization."""
+    try:
+        km = get_knowledge_memory()
+        stats = km.get_statistics()
+        
+        # Get topic names and counts
+        topics_data = []
+        topics = stats.get("topics", [])
+        
+        # Access memory data directly
+        memory_data = km.memory
+        if memory_data and "topics" in memory_data:
+            for topic_name, insights in memory_data["topics"].items():
+                topics_data.append({
+                    "topic": topic_name,
+                    "count": len(insights),
+                    "insights": [
+                        {
+                            "content": ins.get("content", "")[:200],
+                            "weight": ins.get("weight", 1)
+                        }
+                        for ins in insights[:5]  # Top 5 insights per topic
+                    ]
+                })
+        else:
+            # Fallback to basic topic list
+            for topic in topics:
+                topics_data.append({
+                    "topic": topic,
+                    "count": 1,
+                    "insights": []
+                })
+        
+        # Sort by count descending
+        topics_data.sort(key=lambda x: x["count"], reverse=True)
+        
+        return jsonify({
+            "success": True,
+            "topics": topics_data,
+            "total_topics": len(topics_data),
+            "total_insights": stats.get("total_insights", 0),
+            "total_arguments": stats.get("total_arguments", 0)
+        })
+        
+    except (IOError, OSError) as e:
+        log_exception(e, "Error reading knowledge topics")
+        return jsonify({"error": str(e)}), 500
+    except (KeyError, AttributeError) as e:
+        log_exception(e, "Error accessing knowledge topics data")
+        return jsonify({"error": str(e)}), 500
+    except Exception as e:
+        log_exception(e, "Unexpected error getting knowledge topics")
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/knowledge/topiccloud", methods=["GET"])
+def get_topic_cloud_image():
+    """Generate a topic cloud visualization as PNG image."""
+    try:
+        km = get_knowledge_memory()
+        memory_data = km.memory
+        
+        if not memory_data or "topics" not in memory_data or not memory_data["topics"]:
+            # Return a placeholder image with "No topics" message
+            import io
+            try:
+                import matplotlib
+                matplotlib.use('Agg')  # Non-interactive backend
+                import matplotlib.pyplot as plt
+                
+                fig, ax = plt.subplots(figsize=(8, 4))
+                ax.text(0.5, 0.5, "No topics learned yet\nUpload PDFs to populate knowledge",
+                        ha='center', va='center', fontsize=16, color='#888',
+                        transform=ax.transAxes)
+                ax.axis('off')
+                fig.patch.set_facecolor('#f8f6f0')
+                
+                img_buffer = io.BytesIO()
+                plt.savefig(img_buffer, format='png', bbox_inches='tight',
+                           facecolor='#f8f6f0', edgecolor='none', dpi=100)
+                plt.close(fig)
+                img_buffer.seek(0)
+                
+                return Response(img_buffer.getvalue(), mimetype='image/png')
+            except ImportError:
+                return jsonify({"error": "matplotlib not installed"}), 500
+        
+        # Build frequency dictionary for word cloud
+        topic_frequencies = {}
+        for topic_name, insights in memory_data["topics"].items():
+            # Clean topic name
+            clean_topic = topic_name.strip().title()
+            # Count is based on number of insights and their weights
+            total_weight = sum(ins.get("weight", 1) for ins in insights)
+            topic_frequencies[clean_topic] = max(1, total_weight)
+        
+        # Generate word cloud
+        import io
+        try:
+            import matplotlib
+            matplotlib.use('Agg')  # Non-interactive backend
+            import matplotlib.pyplot as plt
+            from wordcloud import WordCloud
+            
+            # Create word cloud with Roman-style colors
+            wc = WordCloud(
+                width=800,
+                height=400,
+                background_color='#f8f6f0',  # marble white
+                colormap='copper',  # gold/bronze tones
+                max_words=50,
+                min_font_size=12,
+                max_font_size=80,
+                relative_scaling=0.5,
+                prefer_horizontal=0.7
+            )
+            
+            wc.generate_from_frequencies(topic_frequencies)
+            
+            # Create figure
+            fig, ax = plt.subplots(figsize=(10, 5))
+            ax.imshow(wc, interpolation='bilinear')
+            ax.axis('off')
+            fig.patch.set_facecolor('#f8f6f0')
+            
+            # Save to buffer
+            img_buffer = io.BytesIO()
+            plt.savefig(img_buffer, format='png', bbox_inches='tight',
+                       facecolor='#f8f6f0', edgecolor='none', dpi=100)
+            plt.close(fig)
+            img_buffer.seek(0)
+            
+            return Response(img_buffer.getvalue(), mimetype='image/png')
+            
+        except ImportError as e:
+            log_exception(e, "Missing visualization dependency")
+            return jsonify({
+                "error": "Visualization dependencies not installed",
+                "details": "Install matplotlib and wordcloud: pip install matplotlib wordcloud"
+            }), 500
+            
+    except (IOError, OSError) as e:
+        log_exception(e, "Error generating topic cloud")
+        return jsonify({"error": str(e)}), 500
+    except Exception as e:
+        log_exception(e, "Unexpected error generating topic cloud")
         return jsonify({"error": str(e)}), 500
 
 
