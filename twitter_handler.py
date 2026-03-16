@@ -43,7 +43,6 @@ class TwitterV2Filters(TypedDict, total=False):
     # Content filters
     language: str  # Tweet language (ISO 639-1, e.g., 'en', 'de')
     is_verified: bool  # Only from verified accounts
-    is_not_nullcast: bool  # Exclude promoted content
     
     # Context filters (requires Academic Research access for some)
     conversation_id: str  # Only tweets in specific conversation
@@ -269,7 +268,7 @@ class TwitterHandler:
         if v2_filters.get("exclude_quotes"):
             query += " -is:quote"
         
-        if v2_filters.get("exclude_nullcast") or v2_filters.get("is_not_nullcast"):
+        if v2_filters.get("exclude_nullcast"):
             query += " -is:nullcast"
         
         # Add verified filter

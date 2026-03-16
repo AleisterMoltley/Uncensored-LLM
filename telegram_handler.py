@@ -13,7 +13,7 @@ import re
 from collections import deque
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Optional, Dict, List, Any, Callable, TypedDict
+from typing import Optional, Dict, List, Any, Callable, TypedDict, Tuple
 
 from utils import PersistentStorage
 
@@ -123,7 +123,7 @@ class RateLimiter:
             self._chat_timestamps[chat_id] = deque(maxlen=100)
         return self._chat_timestamps[chat_id]
     
-    def can_send(self, chat_id: int) -> tuple[bool, float]:
+    def can_send(self, chat_id: int) -> Tuple[bool, float]:
         """
         Check if a message can be sent now.
         
@@ -153,7 +153,11 @@ class RateLimiter:
             # Check global per-second limit
             recent_global = sum(1 for ts in self._global_timestamps if now - ts < 1.0)
             if recent_global >= self.messages_per_second:
-                wait_time = 1.0 - (now - self._global_timestamps[-1]) if self._global_timestamps else 1.0
+                # Calculate wait time until next message can be sent
+                if self._global_timestamps:
+                    wait_time = 1.0 - (now - self._global_timestamps[-1])
+                else:
+                    wait_time = 1.0
                 return False, max(0.1, wait_time)
             
             # Check global per-minute limit
