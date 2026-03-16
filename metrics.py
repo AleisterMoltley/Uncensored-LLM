@@ -3,11 +3,15 @@ Prometheus Metrics Module for LLM Servant
 Provides CPU, RAM, and other system metrics in Prometheus format.
 """
 
+import logging
 import threading
 import time
 from typing import Optional, Callable
 
 import psutil
+
+# Logger for metrics module
+logger = logging.getLogger("llm_servant.metrics")
 
 try:
     from prometheus_client import (
@@ -154,8 +158,8 @@ class MetricsCollector:
         while not self._stop_event.is_set():
             try:
                 self.collect_all_metrics()
-            except Exception:
-                pass  # Silently ignore collection errors
+            except Exception as e:
+                logger.debug("Error collecting metrics: %s", e)
             
             # Wait for next collection interval
             self._stop_event.wait(timeout=self.collection_interval)
@@ -185,8 +189,8 @@ class MetricsCollector:
                 ram_usage_bytes.labels(type='buffers').set(mem.buffers)
             
             ram_usage_percent.set(mem.percent)
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug("Error collecting RAM metrics: %s", e)
     
     def _collect_cpu_metrics(self) -> None:
         """Collect CPU usage metrics."""
@@ -203,8 +207,8 @@ class MetricsCollector:
             # CPU counts
             cpu_count.labels(type='physical').set(psutil.cpu_count(logical=False) or 0)
             cpu_count.labels(type='logical').set(psutil.cpu_count(logical=True) or 0)
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug("Error collecting CPU metrics: %s", e)
     
     def _collect_process_metrics(self) -> None:
         """Collect process-specific metrics."""
@@ -223,7 +227,8 @@ class MetricsCollector:
             # Thread count
             num_threads = self._process.num_threads()
             process_threads.set(num_threads)
-        except Exception:
+        except Exception as e:
+            logger.debug("Error collecting process metrics: %s", e)
             pass
 
 
@@ -379,7 +384,8 @@ def get_system_stats_dict() -> dict:
             "ram_bytes": 0,
             "cpu_percent": 0.0,
             "threads": 0,
-        }
+        },
+        "error": None,
     }
     
     try:
@@ -400,7 +406,8 @@ def get_system_stats_dict() -> dict:
         result["process"]["ram_bytes"] = mem_info.rss
         result["process"]["cpu_percent"] = process.cpu_percent()
         result["process"]["threads"] = process.num_threads()
-    except Exception:
-        pass
+    except Exception as e:
+        logger.debug("Error collecting system stats: %s", e)
+        result["error"] = str(e)
     
     return result
