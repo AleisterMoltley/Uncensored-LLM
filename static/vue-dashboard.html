@@ -3,10 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>🏛️ LLM Servant — Vue Dashboard</title>
-    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;500;600;700&family=Cormorant+Garamond:wght@400;500;600&display=swap" rel="stylesheet">
-    <!-- Vue.js 3 CDN -->
-    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <title>🏛️ LLM Servant — Enhanced Dashboard</title>
     <style>
         :root {
             --marble-white: #f8f6f0;
@@ -23,6 +20,11 @@
             --terminal-text: #00ff00;
         }
 
+        @font-face {
+            font-family: 'Cinzel-Local';
+            src: local('Cinzel');
+        }
+
         * {
             margin: 0;
             padding: 0;
@@ -30,50 +32,29 @@
         }
 
         body {
-            font-family: 'Cormorant Garamond', serif;
+            font-family: Georgia, 'Times New Roman', serif;
             background: 
                 linear-gradient(135deg, transparent 25%, var(--marble-veins) 25%, var(--marble-veins) 26%, transparent 26%),
-                linear-gradient(225deg, transparent 25%, var(--marble-veins) 25%, var(--marble-veins) 26%, transparent 26%),
-                linear-gradient(45deg, transparent 25%, var(--marble-veins) 25%, var(--marble-veins) 26%, transparent 26%),
-                linear-gradient(315deg, transparent 25%, var(--marble-veins) 25%, var(--marble-veins) 26%, transparent 26%),
                 linear-gradient(to bottom, var(--marble-white), var(--marble-light));
-            background-size: 100px 100px, 100px 100px, 100px 100px, 100px 100px, 100% 100%;
+            background-size: 100px 100px, 100% 100%;
             min-height: 100vh;
             color: var(--text-dark);
         }
 
-        /* Roman Header */
         header {
             background: linear-gradient(180deg, var(--marble-white) 0%, var(--marble-light) 100%);
             border-bottom: 4px solid var(--gold);
             padding: 1.5rem 2rem;
             box-shadow: 0 4px 20px var(--shadow);
-            position: relative;
-        }
-
-        header::before, header::after {
-            content: '🏛️';
-            position: absolute;
-            font-size: 2rem;
-            top: 50%;
-            transform: translateY(-50%);
-        }
-
-        header::before { left: 2rem; }
-        header::after { right: 2rem; }
-
-        .header-content {
             text-align: center;
         }
 
         h1 {
-            font-family: 'Cinzel', serif;
-            font-size: 2.5rem;
+            font-size: 2.2rem;
             font-weight: 700;
             color: var(--text-dark);
             letter-spacing: 4px;
             text-transform: uppercase;
-            text-shadow: 1px 1px 2px var(--shadow);
         }
 
         .subtitle {
@@ -83,7 +64,6 @@
             font-style: italic;
         }
 
-        /* Navigation */
         .nav-tabs {
             display: flex;
             justify-content: center;
@@ -91,13 +71,13 @@
             background: var(--marble-light);
             padding: 0.5rem;
             border-bottom: 2px solid var(--gold);
+            flex-wrap: wrap;
         }
 
         .nav-tab {
             padding: 0.75rem 1.5rem;
-            font-family: 'Cinzel', serif;
             font-size: 1rem;
-            font-weight: 500;
+            font-weight: 600;
             color: var(--text-light);
             background: transparent;
             border: 2px solid transparent;
@@ -117,14 +97,12 @@
             border-color: var(--gold);
         }
 
-        /* Main Container */
         .container {
             max-width: 1600px;
             margin: 0 auto;
             padding: 2rem;
         }
 
-        /* Panel Styles */
         .panel {
             background: linear-gradient(145deg, var(--marble-white) 0%, var(--marble-light) 50%, var(--marble-white) 100%);
             border: 3px solid var(--gold);
@@ -141,46 +119,33 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
+            flex-wrap: wrap;
+            gap: 1rem;
         }
 
         .panel-title {
-            font-family: 'Cinzel', serif;
             font-size: 1.3rem;
             font-weight: 600;
             color: var(--text-dark);
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
         }
 
         .panel-body {
             padding: 1.5rem;
         }
 
-        /* Grid Layouts */
         .grid-2 {
             display: grid;
             grid-template-columns: repeat(2, 1fr);
             gap: 2rem;
         }
 
-        .grid-3 {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 1.5rem;
-        }
-
         @media (max-width: 1024px) {
-            .grid-2, .grid-3 {
-                grid-template-columns: 1fr;
-            }
+            .grid-2 { grid-template-columns: 1fr; }
         }
 
-        /* Buttons */
         .btn {
-            font-family: 'Cinzel', serif;
             font-size: 0.95rem;
-            font-weight: 500;
+            font-weight: 600;
             padding: 0.75rem 1.5rem;
             border: 2px solid var(--gold);
             border-radius: 4px;
@@ -214,7 +179,6 @@
             font-size: 0.85rem;
         }
 
-        /* Model Selector */
         .model-selector {
             display: flex;
             flex-wrap: wrap;
@@ -229,6 +193,7 @@
             cursor: pointer;
             transition: all 0.3s ease;
             min-width: 200px;
+            flex: 1;
         }
 
         .model-card:hover {
@@ -243,8 +208,7 @@
         }
 
         .model-name {
-            font-family: 'Cinzel', serif;
-            font-weight: 600;
+            font-weight: 700;
             font-size: 1.1rem;
             margin-bottom: 0.25rem;
         }
@@ -267,7 +231,6 @@
             box-shadow: 0 0 8px rgba(76, 175, 80, 0.6);
         }
 
-        /* Real-time Logs */
         .logs-container {
             background: var(--terminal-bg);
             border-radius: 4px;
@@ -282,6 +245,7 @@
             gap: 1rem;
             margin-bottom: 1rem;
             align-items: center;
+            flex-wrap: wrap;
         }
 
         .log-filter {
@@ -297,10 +261,7 @@
             border-bottom: 1px solid #333;
             display: flex;
             gap: 1rem;
-        }
-
-        .log-entry:last-child {
-            border-bottom: none;
+            flex-wrap: wrap;
         }
 
         .log-timestamp {
@@ -330,7 +291,6 @@
             color: #888;
         }
 
-        /* Topic Cloud */
         .topic-cloud-container {
             text-align: center;
             padding: 1rem;
@@ -347,6 +307,7 @@
             justify-content: center;
             gap: 2rem;
             margin-top: 1rem;
+            flex-wrap: wrap;
         }
 
         .topic-stat {
@@ -354,7 +315,6 @@
         }
 
         .topic-stat-value {
-            font-family: 'Cinzel', serif;
             font-size: 2rem;
             font-weight: 700;
             color: var(--gold-dark);
@@ -366,7 +326,6 @@
             text-transform: uppercase;
         }
 
-        /* Topic List */
         .topic-list {
             max-height: 400px;
             overflow-y: auto;
@@ -403,7 +362,6 @@
             font-weight: 600;
         }
 
-        /* Status Indicators */
         .status-dot {
             width: 12px;
             height: 12px;
@@ -426,7 +384,6 @@
             50% { opacity: 0.6; }
         }
 
-        /* Loading States */
         .loading {
             display: inline-block;
             width: 20px;
@@ -441,7 +398,6 @@
             to { transform: rotate(360deg); }
         }
 
-        /* Scrollbar Styling */
         ::-webkit-scrollbar {
             width: 8px;
         }
@@ -459,7 +415,6 @@
             background: #333;
         }
 
-        /* Alerts */
         .alert {
             padding: 1rem;
             border-radius: 4px;
@@ -478,22 +433,13 @@
             color: #c62828;
         }
 
-        .fade-enter-active, .fade-leave-active {
-            transition: opacity 0.3s ease;
-        }
-
-        .fade-enter-from, .fade-leave-to {
-            opacity: 0;
-        }
-
-        /* Back link */
         .back-link {
             display: inline-flex;
             align-items: center;
             gap: 0.5rem;
             color: var(--gold-dark);
             text-decoration: none;
-            font-family: 'Cinzel', serif;
+            font-weight: 600;
             padding: 0.5rem 1rem;
             transition: all 0.3s ease;
         }
@@ -501,216 +447,136 @@
         .back-link:hover {
             color: var(--gold);
         }
+
+        .hidden { display: none !important; }
+
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
     </style>
 </head>
 <body>
-    <div id="app">
-        <header>
-            <div class="header-content">
-                <h1>LLM Servant Imperium</h1>
-                <p class="subtitle">Vue.js Enhanced Dashboard • Real-time Monitoring</p>
-            </div>
-        </header>
+    <header>
+        <h1>🏛️ LLM Servant Imperium</h1>
+        <p class="subtitle">Enhanced Dashboard • Real-time Monitoring • Model Control</p>
+    </header>
 
-        <nav class="nav-tabs">
-            <button class="nav-tab" :class="{ active: activeTab === 'models' }" @click="activeTab = 'models'">
-                🤖 Model Selector
-            </button>
-            <button class="nav-tab" :class="{ active: activeTab === 'logs' }" @click="activeTab = 'logs'">
-                📜 Real-time Logs
-            </button>
-            <button class="nav-tab" :class="{ active: activeTab === 'knowledge' }" @click="activeTab = 'knowledge'">
-                🧠 Knowledge Memory
-            </button>
-        </nav>
+    <nav class="nav-tabs">
+        <button class="nav-tab active" data-tab="models">🤖 Model Selector</button>
+        <button class="nav-tab" data-tab="logs">📜 Real-time Logs</button>
+        <button class="nav-tab" data-tab="knowledge">🧠 Knowledge Memory</button>
+    </nav>
 
-        <div class="container">
-            <!-- Back to main dashboard link -->
-            <a href="/dashboard" class="back-link">← Back to Main Dashboard</a>
+    <div class="container">
+        <a href="/dashboard" class="back-link">← Back to Main Dashboard</a>
 
-            <!-- Alerts -->
-            <transition name="fade">
-                <div v-if="alert.show" :class="['alert', `alert-${alert.type}`]">
-                    {{ alert.message }}
+        <div id="alert-container"></div>
+
+        <!-- Model Selector Tab -->
+        <div id="models-tab" class="tab-content active">
+            <div class="panel">
+                <div class="panel-header">
+                    <span class="panel-title">🤖 Available Models</span>
+                    <button class="btn btn-secondary btn-sm" id="refresh-models-btn">🔄 Refresh</button>
                 </div>
-            </transition>
+                <div class="panel-body">
+                    <p style="margin-bottom: 1rem; color: var(--text-light);">
+                        Select an Ollama model to use for AI responses. The active model will be highlighted.
+                    </p>
+                    <div id="models-loading" class="hidden" style="text-align: center; padding: 2rem;">
+                        <span class="loading"></span>
+                        <p style="margin-top: 1rem; color: var(--text-light);">Loading models...</p>
+                    </div>
+                    <div id="models-empty" class="hidden" style="text-align: center; padding: 2rem; color: var(--text-light);">
+                        <p>No models found. Make sure Ollama is running and has models pulled.</p>
+                    </div>
+                    <div id="models-container" class="model-selector"></div>
+                    <div id="switching-model" class="hidden" style="margin-top: 1rem; text-align: center;">
+                        <span class="loading"></span>
+                        <span style="margin-left: 0.5rem; color: var(--text-light);">Switching model...</span>
+                    </div>
+                </div>
+            </div>
+        </div>
 
-            <!-- Model Selector Tab -->
-            <div v-show="activeTab === 'models'">
+        <!-- Real-time Logs Tab -->
+        <div id="logs-tab" class="tab-content">
+            <div class="panel">
+                <div class="panel-header">
+                    <span class="panel-title">
+                        <span class="status-dot disconnected" id="logs-status"></span>
+                        📜 Real-time Server Logs
+                    </span>
+                    <div style="display: flex; gap: 0.5rem;">
+                        <button class="btn btn-secondary btn-sm" id="toggle-logs-btn">⏸️ Pause</button>
+                        <button class="btn btn-secondary btn-sm" id="clear-logs-btn">🗑️ Clear</button>
+                    </div>
+                </div>
+                <div class="panel-body">
+                    <div class="log-controls">
+                        <label>Filter by level:</label>
+                        <select class="log-filter" id="log-filter">
+                            <option value="">All Levels</option>
+                            <option value="DEBUG">DEBUG</option>
+                            <option value="INFO">INFO</option>
+                            <option value="WARNING">WARNING</option>
+                            <option value="ERROR">ERROR</option>
+                        </select>
+                        <span style="margin-left: auto; color: var(--text-light);" id="log-count">0 logs</span>
+                    </div>
+                    <div class="logs-container" id="logs-container">
+                        <div class="log-empty" id="logs-empty">
+                            No logs to display. Server activity will appear here in real-time.
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Knowledge Memory Tab -->
+        <div id="knowledge-tab" class="tab-content">
+            <div class="grid-2">
                 <div class="panel">
                     <div class="panel-header">
-                        <span class="panel-title">🤖 Available Models</span>
-                        <button class="btn btn-secondary btn-sm" @click="loadModels" :disabled="loadingModels">
-                            <span v-if="loadingModels" class="loading"></span>
-                            <span v-else>🔄 Refresh</span>
-                        </button>
+                        <span class="panel-title">🌐 Knowledge Topic Cloud</span>
+                        <button class="btn btn-secondary btn-sm" id="refresh-topiccloud-btn">🔄 Refresh</button>
                     </div>
                     <div class="panel-body">
-                        <p style="margin-bottom: 1rem; color: var(--text-light);">
-                            Select an Ollama model to use for AI responses. The active model will be highlighted.
-                        </p>
-                        
-                        <div v-if="loadingModels" style="text-align: center; padding: 2rem;">
-                            <span class="loading"></span>
-                            <p style="margin-top: 1rem; color: var(--text-light);">Loading models...</p>
+                        <div class="topic-cloud-container">
+                            <img id="topic-cloud-image" 
+                                 alt="Topic Cloud Visualization" 
+                                 class="topic-cloud-image">
                         </div>
-                        
-                        <div v-else-if="models.length === 0" style="text-align: center; padding: 2rem; color: var(--text-light);">
-                            <p>No models found. Make sure Ollama is running and has models pulled.</p>
-                        </div>
-                        
-                        <div v-else class="model-selector">
-                            <div v-for="model in models" :key="model.name" 
-                                 class="model-card" :class="{ active: model.active }"
-                                 @click="switchModel(model.name)">
-                                <div style="display: flex; align-items: center;">
-                                    <span class="model-status" :class="{ active: model.active }"></span>
-                                    <span class="model-name">{{ model.name }}</span>
-                                </div>
-                                <div class="model-size">Size: {{ model.size }}</div>
-                                <div v-if="model.active" style="margin-top: 0.5rem; color: var(--gold-dark); font-weight: 600;">
-                                    ✓ Currently Active
-                                </div>
+                        <div class="topic-stats">
+                            <div class="topic-stat">
+                                <div class="topic-stat-value" id="stat-topics">0</div>
+                                <div class="topic-stat-label">Topics</div>
                             </div>
-                        </div>
-
-                        <div v-if="switchingModel" style="margin-top: 1rem; text-align: center;">
-                            <span class="loading"></span>
-                            <span style="margin-left: 0.5rem; color: var(--text-light);">Switching model...</span>
+                            <div class="topic-stat">
+                                <div class="topic-stat-value" id="stat-insights">0</div>
+                                <div class="topic-stat-label">Insights</div>
+                            </div>
+                            <div class="topic-stat">
+                                <div class="topic-stat-value" id="stat-arguments">0</div>
+                                <div class="topic-stat-label">Arguments</div>
+                            </div>
                         </div>
                     </div>
                 </div>
-            </div>
 
-            <!-- Real-time Logs Tab -->
-            <div v-show="activeTab === 'logs'">
                 <div class="panel">
                     <div class="panel-header">
-                        <span class="panel-title">
-                            <span class="status-dot" :class="logsConnected ? 'connected' : 'disconnected'"></span>
-                            📜 Real-time Server Logs
-                        </span>
-                        <div style="display: flex; gap: 0.5rem;">
-                            <button class="btn btn-secondary btn-sm" @click="toggleLogStream">
-                                {{ logsStreaming ? '⏸️ Pause' : '▶️ Resume' }}
-                            </button>
-                            <button class="btn btn-secondary btn-sm" @click="clearLogs">🗑️ Clear</button>
-                        </div>
+                        <span class="panel-title">📋 Topics by Insight Count</span>
+                        <button class="btn btn-secondary btn-sm" id="refresh-topics-btn">🔄 Refresh</button>
                     </div>
                     <div class="panel-body">
-                        <div class="log-controls">
-                            <label>Filter by level:</label>
-                            <select class="log-filter" v-model="logFilter">
-                                <option value="">All Levels</option>
-                                <option value="DEBUG">DEBUG</option>
-                                <option value="INFO">INFO</option>
-                                <option value="WARNING">WARNING</option>
-                                <option value="ERROR">ERROR</option>
-                            </select>
-                            <span style="margin-left: auto; color: var(--text-light);">
-                                {{ filteredLogs.length }} logs
-                            </span>
+                        <div id="topics-loading" class="hidden" style="text-align: center; padding: 2rem;">
+                            <span class="loading"></span>
                         </div>
-                        
-                        <div class="logs-container" ref="logsContainer">
-                            <div v-if="filteredLogs.length === 0" class="log-empty">
-                                No logs to display. Server activity will appear here in real-time.
-                            </div>
-                            <div v-else>
-                                <div v-for="(log, index) in filteredLogs" :key="index" class="log-entry">
-                                    <span class="log-timestamp">{{ formatTimestamp(log.timestamp) }}</span>
-                                    <span class="log-level" :class="log.level">{{ log.level }}</span>
-                                    <span class="log-message">{{ log.message }}</span>
-                                </div>
-                            </div>
+                        <div id="topics-empty" style="text-align: center; padding: 2rem; color: var(--text-light);">
+                            <p>No knowledge topics yet.</p>
+                            <p style="font-size: 0.9rem;">Upload PDFs to populate the knowledge memory.</p>
                         </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Knowledge Memory Tab -->
-            <div v-show="activeTab === 'knowledge'">
-                <div class="grid-2">
-                    <!-- Topic Cloud Visualization -->
-                    <div class="panel">
-                        <div class="panel-header">
-                            <span class="panel-title">🌐 Knowledge Topic Cloud</span>
-                            <button class="btn btn-secondary btn-sm" @click="refreshTopicCloud">
-                                🔄 Refresh
-                            </button>
-                        </div>
-                        <div class="panel-body">
-                            <div class="topic-cloud-container">
-                                <img :src="topicCloudUrl" 
-                                     alt="Topic Cloud Visualization" 
-                                     class="topic-cloud-image"
-                                     @error="handleImageError">
-                            </div>
-                            <div class="topic-stats">
-                                <div class="topic-stat">
-                                    <div class="topic-stat-value">{{ knowledgeStats.total_topics }}</div>
-                                    <div class="topic-stat-label">Topics</div>
-                                </div>
-                                <div class="topic-stat">
-                                    <div class="topic-stat-value">{{ knowledgeStats.total_insights }}</div>
-                                    <div class="topic-stat-label">Insights</div>
-                                </div>
-                                <div class="topic-stat">
-                                    <div class="topic-stat-value">{{ knowledgeStats.total_arguments }}</div>
-                                    <div class="topic-stat-label">Arguments</div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Topic List -->
-                    <div class="panel">
-                        <div class="panel-header">
-                            <span class="panel-title">📋 Topics by Insight Count</span>
-                            <button class="btn btn-secondary btn-sm" @click="loadTopics" :disabled="loadingTopics">
-                                <span v-if="loadingTopics" class="loading"></span>
-                                <span v-else>🔄 Refresh</span>
-                            </button>
-                        </div>
-                        <div class="panel-body">
-                            <div v-if="loadingTopics" style="text-align: center; padding: 2rem;">
-                                <span class="loading"></span>
-                            </div>
-                            
-                            <div v-else-if="topics.length === 0" style="text-align: center; padding: 2rem; color: var(--text-light);">
-                                <p>No knowledge topics yet.</p>
-                                <p style="font-size: 0.9rem;">Upload PDFs to populate the knowledge memory.</p>
-                            </div>
-                            
-                            <div v-else class="topic-list">
-                                <div v-for="topic in topics" :key="topic.topic" 
-                                     class="topic-item" @click="showTopicDetails(topic)">
-                                    <span class="topic-name">{{ topic.topic }}</span>
-                                    <span class="topic-count">{{ topic.count }} insights</span>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Topic Details Modal -->
-                <div v-if="selectedTopic" class="panel" style="margin-top: 1rem;">
-                    <div class="panel-header">
-                        <span class="panel-title">📖 Topic: {{ selectedTopic.topic }}</span>
-                        <button class="btn btn-secondary btn-sm" @click="selectedTopic = null">✕ Close</button>
-                    </div>
-                    <div class="panel-body">
-                        <p style="margin-bottom: 1rem; color: var(--text-light);">
-                            Top insights for this topic:
-                        </p>
-                        <div v-for="(insight, index) in selectedTopic.insights" :key="index" 
-                             style="padding: 0.75rem; background: var(--marble-veins); border-radius: 4px; margin-bottom: 0.5rem;">
-                            <p>{{ insight.content }}</p>
-                            <small style="color: var(--text-light);">Weight: {{ insight.weight }}</small>
-                        </div>
-                        <p v-if="selectedTopic.insights.length === 0" style="color: var(--text-light); font-style: italic;">
-                            No insights preview available.
-                        </p>
+                        <div id="topics-container" class="topic-list"></div>
                     </div>
                 </div>
             </div>
@@ -718,265 +584,321 @@
     </div>
 
     <script>
-        const { createApp, ref, computed, onMounted, onUnmounted, nextTick } = Vue;
+        // ============================================================
+        // State
+        // ============================================================
+        const state = {
+            activeTab: 'models',
+            models: [],
+            logs: [],
+            logsStreaming: true,
+            logsConnected: false,
+            topics: [],
+            logFilter: '',
+            eventSource: null
+        };
 
-        createApp({
-            setup() {
-                // Tab state
-                const activeTab = ref('models');
+        // ============================================================
+        // Utility Functions
+        // ============================================================
+        function showAlert(message, type = 'success') {
+            const container = document.getElementById('alert-container');
+            const alert = document.createElement('div');
+            alert.className = `alert alert-${type}`;
+            alert.textContent = message;
+            container.innerHTML = '';
+            container.appendChild(alert);
+            setTimeout(() => alert.remove(), 5000);
+        }
 
-                // Alert system
-                const alert = ref({ show: false, type: 'success', message: '' });
-                let alertTimeout = null;
+        function formatTimestamp(isoString) {
+            try {
+                return new Date(isoString).toLocaleTimeString();
+            } catch {
+                return isoString;
+            }
+        }
 
-                const showAlert = (message, type = 'success') => {
-                    if (alertTimeout) clearTimeout(alertTimeout);
-                    alert.value = { show: true, type, message };
-                    alertTimeout = setTimeout(() => {
-                        alert.value.show = false;
-                    }, 5000);
-                };
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
 
-                // Models
-                const models = ref([]);
-                const loadingModels = ref(false);
-                const switchingModel = ref(false);
-
-                const loadModels = async () => {
-                    loadingModels.value = true;
-                    try {
-                        const response = await fetch('/api/models');
-                        const data = await response.json();
-                        if (data.success) {
-                            models.value = data.models;
-                        } else {
-                            showAlert(data.error || 'Failed to load models', 'error');
-                        }
-                    } catch (error) {
-                        showAlert('Error loading models: ' + error.message, 'error');
-                    } finally {
-                        loadingModels.value = false;
-                    }
-                };
-
-                const switchModel = async (modelName) => {
-                    if (switchingModel.value) return;
-                    
-                    const currentModel = models.value.find(m => m.active);
-                    if (currentModel && currentModel.name === modelName) {
-                        showAlert('This model is already active', 'success');
-                        return;
-                    }
-
-                    switchingModel.value = true;
-                    try {
-                        const response = await fetch('/api/models/switch', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ model: modelName })
-                        });
-                        const data = await response.json();
-                        
-                        if (data.success) {
-                            showAlert(data.message, 'success');
-                            await loadModels();
-                        } else {
-                            showAlert(data.error || 'Failed to switch model', 'error');
-                        }
-                    } catch (error) {
-                        showAlert('Error switching model: ' + error.message, 'error');
-                    } finally {
-                        switchingModel.value = false;
-                    }
-                };
-
-                // Logs
-                const logs = ref([]);
-                const logFilter = ref('');
-                const logsConnected = ref(false);
-                const logsStreaming = ref(true);
-                const logsContainer = ref(null);
-                let eventSource = null;
-
-                const filteredLogs = computed(() => {
-                    if (!logFilter.value) return logs.value;
-                    return logs.value.filter(log => log.level === logFilter.value);
+        // ============================================================
+        // Tab Navigation
+        // ============================================================
+        document.querySelectorAll('.nav-tab').forEach(tab => {
+            tab.addEventListener('click', () => {
+                const tabId = tab.dataset.tab;
+                
+                document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+                tab.classList.add('active');
+                
+                document.querySelectorAll('.tab-content').forEach(content => {
+                    content.classList.remove('active');
                 });
+                document.getElementById(tabId + '-tab').classList.add('active');
+                
+                state.activeTab = tabId;
+            });
+        });
 
-                const formatTimestamp = (isoString) => {
-                    try {
-                        return new Date(isoString).toLocaleTimeString();
-                    } catch {
-                        return isoString;
-                    }
-                };
+        // ============================================================
+        // Model Functions
+        // ============================================================
+        async function loadModels() {
+            const container = document.getElementById('models-container');
+            const loading = document.getElementById('models-loading');
+            const empty = document.getElementById('models-empty');
+            
+            loading.classList.remove('hidden');
+            container.innerHTML = '';
+            empty.classList.add('hidden');
+            
+            try {
+                const response = await fetch('/api/models');
+                const data = await response.json();
+                
+                loading.classList.add('hidden');
+                
+                if (data.success && data.models.length > 0) {
+                    state.models = data.models;
+                    renderModels();
+                } else if (data.error) {
+                    showAlert(data.error, 'error');
+                    empty.classList.remove('hidden');
+                } else {
+                    empty.classList.remove('hidden');
+                }
+            } catch (error) {
+                loading.classList.add('hidden');
+                showAlert('Error loading models: ' + error.message, 'error');
+                empty.classList.remove('hidden');
+            }
+        }
 
-                const scrollLogsToBottom = () => {
-                    nextTick(() => {
-                        if (logsContainer.value) {
-                            logsContainer.value.scrollTop = logsContainer.value.scrollHeight;
-                        }
-                    });
-                };
+        function renderModels() {
+            const container = document.getElementById('models-container');
+            container.innerHTML = state.models.map(model => `
+                <div class="model-card ${model.active ? 'active' : ''}" onclick="switchModel('${model.name}')">
+                    <div style="display: flex; align-items: center;">
+                        <span class="model-status ${model.active ? 'active' : ''}"></span>
+                        <span class="model-name">${escapeHtml(model.name)}</span>
+                    </div>
+                    <div class="model-size">Size: ${escapeHtml(model.size)}</div>
+                    ${model.active ? '<div style="margin-top: 0.5rem; color: var(--gold-dark); font-weight: 600;">✓ Currently Active</div>' : ''}
+                </div>
+            `).join('');
+        }
 
-                const startLogStream = () => {
-                    if (eventSource) {
-                        eventSource.close();
-                    }
+        async function switchModel(modelName) {
+            const currentModel = state.models.find(m => m.active);
+            if (currentModel && currentModel.name === modelName) {
+                showAlert('This model is already active', 'success');
+                return;
+            }
 
-                    eventSource = new EventSource('/api/logs/stream');
+            const switching = document.getElementById('switching-model');
+            switching.classList.remove('hidden');
+
+            try {
+                const response = await fetch('/api/models/switch', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ model: modelName })
+                });
+                const data = await response.json();
+                
+                switching.classList.add('hidden');
+                
+                if (data.success) {
+                    showAlert(data.message, 'success');
+                    await loadModels();
+                } else {
+                    showAlert(data.error || 'Failed to switch model', 'error');
+                }
+            } catch (error) {
+                switching.classList.add('hidden');
+                showAlert('Error switching model: ' + error.message, 'error');
+            }
+        }
+
+        document.getElementById('refresh-models-btn').addEventListener('click', loadModels);
+
+        // ============================================================
+        // Logs Functions
+        // ============================================================
+        function startLogStream() {
+            if (state.eventSource) {
+                state.eventSource.close();
+            }
+
+            state.eventSource = new EventSource('/api/logs/stream');
+            
+            state.eventSource.onopen = () => {
+                state.logsConnected = true;
+                document.getElementById('logs-status').classList.remove('disconnected');
+                document.getElementById('logs-status').classList.add('connected');
+            };
+
+            state.eventSource.onmessage = (event) => {
+                try {
+                    const data = JSON.parse(event.data);
                     
-                    eventSource.onopen = () => {
-                        logsConnected.value = true;
-                    };
-
-                    eventSource.onmessage = (event) => {
-                        try {
-                            const data = JSON.parse(event.data);
-                            
-                            if (data.type === 'connected') {
-                                logsConnected.value = true;
-                            } else if (data.type === 'log' && logsStreaming.value) {
-                                logs.value.push(data.log);
-                                // Keep buffer bounded
-                                if (logs.value.length > 200) {
-                                    logs.value = logs.value.slice(-200);
-                                }
-                                scrollLogsToBottom();
-                            }
-                        } catch (e) {
-                            console.error('Error parsing log event:', e);
+                    if (data.type === 'connected') {
+                        state.logsConnected = true;
+                        document.getElementById('logs-status').classList.remove('disconnected');
+                        document.getElementById('logs-status').classList.add('connected');
+                    } else if (data.type === 'log' && state.logsStreaming) {
+                        state.logs.push(data.log);
+                        if (state.logs.length > 200) {
+                            state.logs = state.logs.slice(-200);
                         }
-                    };
+                        renderLogs();
+                    }
+                } catch (e) {
+                    console.error('Error parsing log event:', e);
+                }
+            };
 
-                    eventSource.onerror = () => {
-                        logsConnected.value = false;
-                        // Try to reconnect after 5 seconds
-                        setTimeout(() => {
-                            if (logsStreaming.value) {
-                                startLogStream();
-                            }
-                        }, 5000);
-                    };
-                };
-
-                const toggleLogStream = () => {
-                    logsStreaming.value = !logsStreaming.value;
-                    if (logsStreaming.value) {
+            state.eventSource.onerror = () => {
+                state.logsConnected = false;
+                document.getElementById('logs-status').classList.remove('connected');
+                document.getElementById('logs-status').classList.add('disconnected');
+                setTimeout(() => {
+                    if (state.logsStreaming) {
                         startLogStream();
                     }
-                };
+                }, 5000);
+            };
+        }
 
-                const clearLogs = async () => {
-                    try {
-                        await fetch('/api/logs', { method: 'DELETE' });
-                        logs.value = [];
-                        showAlert('Logs cleared', 'success');
-                    } catch (error) {
-                        showAlert('Error clearing logs: ' + error.message, 'error');
-                    }
-                };
-
-                // Knowledge Memory
-                const topics = ref([]);
-                const loadingTopics = ref(false);
-                const selectedTopic = ref(null);
-                const topicCloudUrl = ref('/api/knowledge/topiccloud?' + Date.now());
-                const knowledgeStats = ref({
-                    total_topics: 0,
-                    total_insights: 0,
-                    total_arguments: 0
-                });
-
-                const loadTopics = async () => {
-                    loadingTopics.value = true;
-                    try {
-                        const response = await fetch('/api/knowledge/topics');
-                        const data = await response.json();
-                        if (data.success) {
-                            topics.value = data.topics;
-                            knowledgeStats.value = {
-                                total_topics: data.total_topics || 0,
-                                total_insights: data.total_insights || 0,
-                                total_arguments: data.total_arguments || 0
-                            };
-                        } else {
-                            showAlert(data.error || 'Failed to load topics', 'error');
-                        }
-                    } catch (error) {
-                        showAlert('Error loading topics: ' + error.message, 'error');
-                    } finally {
-                        loadingTopics.value = false;
-                    }
-                };
-
-                const refreshTopicCloud = () => {
-                    topicCloudUrl.value = '/api/knowledge/topiccloud?' + Date.now();
-                    loadTopics();
-                };
-
-                const showTopicDetails = (topic) => {
-                    selectedTopic.value = topic;
-                };
-
-                const handleImageError = () => {
-                    console.error('Failed to load topic cloud image');
-                };
-
-                // Lifecycle
-                onMounted(() => {
-                    loadModels();
-                    loadTopics();
-                    startLogStream();
-                });
-
-                onUnmounted(() => {
-                    if (eventSource) {
-                        eventSource.close();
-                    }
-                    if (alertTimeout) {
-                        clearTimeout(alertTimeout);
-                    }
-                });
-
-                return {
-                    // Tab
-                    activeTab,
-                    
-                    // Alert
-                    alert,
-                    
-                    // Models
-                    models,
-                    loadingModels,
-                    switchingModel,
-                    loadModels,
-                    switchModel,
-                    
-                    // Logs
-                    logs,
-                    logFilter,
-                    filteredLogs,
-                    logsConnected,
-                    logsStreaming,
-                    logsContainer,
-                    formatTimestamp,
-                    toggleLogStream,
-                    clearLogs,
-                    
-                    // Knowledge
-                    topics,
-                    loadingTopics,
-                    selectedTopic,
-                    topicCloudUrl,
-                    knowledgeStats,
-                    loadTopics,
-                    refreshTopicCloud,
-                    showTopicDetails,
-                    handleImageError
-                };
+        function renderLogs() {
+            const container = document.getElementById('logs-container');
+            const empty = document.getElementById('logs-empty');
+            const count = document.getElementById('log-count');
+            
+            let filteredLogs = state.logs;
+            if (state.logFilter) {
+                filteredLogs = state.logs.filter(log => log.level === state.logFilter);
             }
-        }).mount('#app');
+            
+            count.textContent = `${filteredLogs.length} logs`;
+            
+            if (filteredLogs.length === 0) {
+                empty.classList.remove('hidden');
+                container.querySelectorAll('.log-entry').forEach(el => el.remove());
+                return;
+            }
+            
+            empty.classList.add('hidden');
+            
+            // Clear existing logs and re-render
+            container.querySelectorAll('.log-entry').forEach(el => el.remove());
+            
+            filteredLogs.forEach(log => {
+                const entry = document.createElement('div');
+                entry.className = 'log-entry';
+                entry.innerHTML = `
+                    <span class="log-timestamp">${formatTimestamp(log.timestamp)}</span>
+                    <span class="log-level ${log.level}">${log.level}</span>
+                    <span class="log-message">${escapeHtml(log.message)}</span>
+                `;
+                container.appendChild(entry);
+            });
+            
+            container.scrollTop = container.scrollHeight;
+        }
+
+        document.getElementById('log-filter').addEventListener('change', (e) => {
+            state.logFilter = e.target.value;
+            renderLogs();
+        });
+
+        document.getElementById('toggle-logs-btn').addEventListener('click', () => {
+            state.logsStreaming = !state.logsStreaming;
+            const btn = document.getElementById('toggle-logs-btn');
+            btn.textContent = state.logsStreaming ? '⏸️ Pause' : '▶️ Resume';
+            
+            if (state.logsStreaming) {
+                startLogStream();
+            }
+        });
+
+        document.getElementById('clear-logs-btn').addEventListener('click', async () => {
+            try {
+                await fetch('/api/logs', { method: 'DELETE' });
+                state.logs = [];
+                renderLogs();
+                showAlert('Logs cleared', 'success');
+            } catch (error) {
+                showAlert('Error clearing logs: ' + error.message, 'error');
+            }
+        });
+
+        // ============================================================
+        // Knowledge Memory Functions
+        // ============================================================
+        async function loadTopics() {
+            const container = document.getElementById('topics-container');
+            const loading = document.getElementById('topics-loading');
+            const empty = document.getElementById('topics-empty');
+            
+            loading.classList.remove('hidden');
+            container.innerHTML = '';
+            
+            try {
+                const response = await fetch('/api/knowledge/topics');
+                const data = await response.json();
+                
+                loading.classList.add('hidden');
+                
+                if (data.success) {
+                    document.getElementById('stat-topics').textContent = data.total_topics || 0;
+                    document.getElementById('stat-insights').textContent = data.total_insights || 0;
+                    document.getElementById('stat-arguments').textContent = data.total_arguments || 0;
+                    
+                    state.topics = data.topics || [];
+                    
+                    if (state.topics.length === 0) {
+                        empty.classList.remove('hidden');
+                    } else {
+                        empty.classList.add('hidden');
+                        container.innerHTML = state.topics.map(topic => `
+                            <div class="topic-item">
+                                <span class="topic-name">${escapeHtml(topic.topic)}</span>
+                                <span class="topic-count">${topic.count} insights</span>
+                            </div>
+                        `).join('');
+                    }
+                } else {
+                    showAlert(data.error || 'Failed to load topics', 'error');
+                }
+            } catch (error) {
+                loading.classList.add('hidden');
+                showAlert('Error loading topics: ' + error.message, 'error');
+            }
+        }
+
+        function refreshTopicCloud() {
+            const img = document.getElementById('topic-cloud-image');
+            img.src = '/api/knowledge/topiccloud?' + Date.now();
+            loadTopics();
+        }
+
+        document.getElementById('refresh-topics-btn').addEventListener('click', loadTopics);
+        document.getElementById('refresh-topiccloud-btn').addEventListener('click', refreshTopicCloud);
+
+        // ============================================================
+        // Initialize
+        // ============================================================
+        document.addEventListener('DOMContentLoaded', () => {
+            loadModels();
+            loadTopics();
+            startLogStream();
+            document.getElementById('topic-cloud-image').src = '/api/knowledge/topiccloud?' + Date.now();
+        });
     </script>
 </body>
 </html>
