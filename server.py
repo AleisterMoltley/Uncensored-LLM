@@ -19,6 +19,7 @@ from pathlib import Path
 from typing import Dict, Any, Optional, List, Callable, TYPE_CHECKING
 
 import requests
+import psutil
 from flask import Flask, request, jsonify, send_from_directory, Response, stream_with_context
 from flask_cors import CORS
 
@@ -354,10 +355,17 @@ class LLMServantApp:
         """Get or create OllamaLLM instance."""
         if self._llm is None:
             from langchain_ollama import OllamaLLM
+            # Apply low_memory_mode settings if enabled
+            # Note: Using self.config directly here instead of get_effective_num_ctx()
+            # to avoid potential circular dependency during initialization
+            if self.config.get("low_memory_mode", False):
+                num_ctx = 1024
+            else:
+                num_ctx = self.config.get("num_ctx", 2048)
             self._llm = OllamaLLM(
                 model=self.config["model"],
                 temperature=self.config.get("temperature", 0.5),
-                num_ctx=self.config.get("num_ctx", 2048),
+                num_ctx=num_ctx,
                 num_predict=512,        # Max token output limit
                 repeat_penalty=1.1,     # Less repetition
                 top_k=40,
@@ -829,6 +837,20 @@ class _ConfigProxy:
 CONFIG = _ConfigProxy()
 
 
+def get_effective_top_k() -> int:
+    """Get the effective RAG top_k value, considering low_memory_mode."""
+    if CONFIG.get("low_memory_mode", False):
+        return 2
+    return CONFIG.get("top_k", 5)
+
+
+def get_effective_num_ctx() -> int:
+    """Get the effective num_ctx value, considering low_memory_mode."""
+    if CONFIG.get("low_memory_mode", False):
+        return 1024
+    return CONFIG.get("num_ctx", 2048)
+
+
 # Create the Flask app reference for route decorators
 app = get_flask_app()
 
@@ -946,7 +968,7 @@ def chat():
         sources = []
         if use_rag:
             vs = get_vectorstore()
-            results = vs.similarity_search_with_score(query, k=CONFIG["top_k"])
+            results = vs.similarity_search_with_score(query, k=get_effective_top_k())
             doc_context = "\n\n".join([f"[{i+1}] {doc.page_content}" for i, (doc, _) in enumerate(results)])
             sources = [doc.metadata.get("source", "Unknown") for doc, _ in results]
 
@@ -1004,7 +1026,7 @@ def chat_stream():
             sources = []
             if use_rag:
                 vs = get_vectorstore()
-                results = vs.similarity_search_with_score(query, k=CONFIG["top_k"])
+                results = vs.similarity_search_with_score(query, k=get_effective_top_k())
                 doc_context = "\n\n".join([f"[{i+1}] {doc.page_content}" for i, (doc, _) in enumerate(results)])
                 sources = [doc.metadata.get("source", "Unknown") for doc, _ in results]
 
@@ -1080,13 +1102,13 @@ def update_config():
     data = request.json
     app_instance = LLMServantApp.get_instance()
     allowed = ["model", "system_prompt", "top_k", "chunk_size", "chunk_overlap",
-               "temperature", "num_ctx", "max_memory_messages"]
+               "temperature", "num_ctx", "max_memory_messages", "low_memory_mode"]
     for key in allowed:
         if key in data:
             app_instance.config[key] = data[key]
     app_instance.save_config()
 
-    if "model" in data or "temperature" in data or "num_ctx" in data:
+    if "model" in data or "temperature" in data or "num_ctx" in data or "low_memory_mode" in data:
         app_instance.reset_llm()
 
     return jsonify({"success": True, "config": dict(app_instance.config)})
@@ -1140,8 +1162,9 @@ def health():
         "model": CONFIG["model"],
         "documents_count": len(docs),
         "conversations_count": len(memory.conversations),
-        "num_ctx": CONFIG.get("num_ctx", 2048),
+        "num_ctx": get_effective_num_ctx(),
         "temperature": CONFIG.get("temperature", 0.5),
+        "low_memory_mode": CONFIG.get("low_memory_mode", False),
         "knowledge_memory": knowledge_stats
     })
 
@@ -1151,6 +1174,27 @@ def unload():
     """Unload unused models from RAM."""
     unload_unused_models()
     return jsonify({"success": True, "message": "Unused models unloaded."})
+
+
+@app.route("/api/system/stats", methods=["GET"])
+def get_system_stats():
+    """Get system statistics including RAM usage."""
+    try:
+        memory_info = psutil.virtual_memory()
+        return jsonify({
+            "ram": {
+                "total_mb": round(memory_info.total / (1024 * 1024), 2),
+                "available_mb": round(memory_info.available / (1024 * 1024), 2),
+                "used_mb": round(memory_info.used / (1024 * 1024), 2),
+                "percent": memory_info.percent
+            },
+            "low_memory_mode": CONFIG.get("low_memory_mode", False),
+            "effective_num_ctx": get_effective_num_ctx(),
+            "effective_top_k": get_effective_top_k()
+        })
+    except Exception as e:
+        log_exception(e, "Error getting system stats")
+        return jsonify({"error": str(e)}), 500
 
 
 @app.route("/api/execute", methods=["POST"])
@@ -2127,13 +2171,22 @@ if __name__ == "__main__":
     logger.info("LOCAL LLM SERVANT v2 starting...")
     print(f"\n🏛️ LOCAL LLM SERVANT v2 starting...")
     print(f"   Model:       {CONFIG['model']}")
-    print(f"   Context:     {CONFIG.get('num_ctx', 2048)} tokens")
+    low_mem = CONFIG.get('low_memory_mode', False)
+    print(f"   Low Memory:  {'✓ Enabled' if low_mem else '✗ Disabled'}")
+    print(f"   Context:     {get_effective_num_ctx()} tokens")
     print(f"   Temperature: {CONFIG.get('temperature', 0.5)}")
-    print(f"   RAG top_k:   {CONFIG['top_k']}")
+    print(f"   RAG top_k:   {get_effective_top_k()}")
     print(f"   URL:         http://{CONFIG['host']}:{CONFIG['port']}")
     print(f"   Dashboard:   http://{CONFIG['host']}:{CONFIG['port']}/dashboard")
     print(f"   Documents:   {len(get_documents_index())}")
     print(f"   Debug mode:  {'✓ Enabled' if DEBUG_MODE else '✗ Disabled'}")
+    
+    # RAM usage at startup
+    try:
+        mem = psutil.virtual_memory()
+        print(f"   RAM:         {round(mem.used / (1024**3), 1)} GB / {round(mem.total / (1024**3), 1)} GB ({mem.percent}%)")
+    except Exception:
+        pass
     
     # Knowledge memory status
     try:

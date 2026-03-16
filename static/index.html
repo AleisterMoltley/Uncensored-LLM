@@ -1453,9 +1453,16 @@
         <div class="panel full-width">
             <div class="panel-header">
                 <span class="panel-title">💬 Chat with the Emperor</span>
-                <div class="status">
-                    <span class="status-dot" id="llm-status"></span>
-                    <span id="llm-status-text">Connecting...</span>
+                <div style="display: flex; align-items: center; gap: 1.5rem;">
+                    <div class="status" style="font-size: 0.85rem; color: var(--text-light);">
+                        <span>💾 RAM:</span>
+                        <span id="ram-usage">--</span>
+                        <span id="low-memory-badge" style="display: none; background: var(--gold); color: var(--text-dark); padding: 2px 8px; border-radius: 4px; font-size: 0.75rem; margin-left: 0.5rem;">LOW MEM</span>
+                    </div>
+                    <div class="status">
+                        <span class="status-dot" id="llm-status"></span>
+                        <span id="llm-status-text">Connecting...</span>
+                    </div>
                 </div>
             </div>
             <div class="panel-body">
@@ -2614,10 +2621,40 @@
                     statusText.textContent = 'Ollama not reachable';
                     addTerminalLine('Warning: Ollama is not reachable', 'error');
                 }
+                
+                // Update low memory badge from health response
+                updateLowMemoryBadge(health.low_memory_mode);
             } catch (error) {
                 document.getElementById('llm-status').className = 'status-dot error';
                 document.getElementById('llm-status-text').textContent = 'Server not reachable';
                 addTerminalLine(`Connection error: ${error.message}`, 'error');
+            }
+        }
+
+        async function updateSystemStats() {
+            try {
+                const response = await fetch('/api/system/stats');
+                const stats = await response.json();
+                
+                if (stats.ram) {
+                    const usedGB = (stats.ram.used_mb / 1024).toFixed(1);
+                    const totalGB = (stats.ram.total_mb / 1024).toFixed(1);
+                    document.getElementById('ram-usage').textContent = `${usedGB}/${totalGB} GB (${stats.ram.percent}%)`;
+                }
+                
+                // Update low memory badge
+                updateLowMemoryBadge(stats.low_memory_mode);
+            } catch (error) {
+                document.getElementById('ram-usage').textContent = 'N/A';
+            }
+        }
+
+        function updateLowMemoryBadge(isLowMemoryMode) {
+            const lowMemBadge = document.getElementById('low-memory-badge');
+            if (isLowMemoryMode) {
+                lowMemBadge.style.display = 'inline';
+            } else {
+                lowMemBadge.style.display = 'none';
             }
         }
 
@@ -2663,11 +2700,13 @@
             loadTelegramConfig();
             loadTelegramHistory();
             loadTelegramMemories();
+            updateSystemStats();  // Initial system stats load
             
             // Periodic status updates
             setInterval(checkHealth, 30000);
             setInterval(twitterRefreshStatus, 60000);
             setInterval(telegramRefreshStatus, 60000);
+            setInterval(updateSystemStats, 10000);  // Update RAM usage every 10 seconds
             
             addTerminalLine('Dashboard initialized. Ave Caesar!', 'response');
         });
