@@ -1394,6 +1394,37 @@ def clear_knowledge():
         return jsonify({"error": str(e)}), 500
 
 
+@app.route("/api/knowledge/cache", methods=["GET"])
+def get_embedding_cache_stats():
+    """Get embedding cache statistics."""
+    try:
+        km = get_knowledge_memory()
+        stats = km.get_embedding_cache_stats()
+        return jsonify(stats)
+    except (IOError, OSError) as e:
+        log_exception(e, "Error getting embedding cache stats")
+        return jsonify({"error": str(e)}), 500
+    except Exception as e:
+        log_exception(e, "Unexpected error getting embedding cache stats")
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/knowledge/cache", methods=["DELETE"])
+def clear_embedding_cache():
+    """Clear all cached embeddings."""
+    try:
+        km = get_knowledge_memory()
+        deleted = km.clear_embedding_cache()
+        logger.info("Embedding cache cleared: %d entries deleted", deleted)
+        return jsonify({"success": True, "deleted": deleted})
+    except (IOError, OSError) as e:
+        log_exception(e, "Error clearing embedding cache")
+        return jsonify({"error": str(e)}), 500
+    except Exception as e:
+        log_exception(e, "Unexpected error clearing embedding cache")
+        return jsonify({"error": str(e)}), 500
+
+
 # ============================================================
 #  PERSONALITY API ROUTES
 # ============================================================

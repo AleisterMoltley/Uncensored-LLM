@@ -6,6 +6,7 @@ import tempfile
 import shutil
 from pathlib import Path
 import unittest
+from unittest.mock import patch, MagicMock
 
 from knowledge_memory import (
     KnowledgeMemory,
@@ -18,6 +19,8 @@ from knowledge_memory import (
     ExtractionResult,
     RelevantKnowledgeResult,
     StatisticsResult,
+    EmbeddingCache,
+    RedisConfig,
 )
 from pydantic import ValidationError
 
@@ -495,5 +498,331 @@ class TestValidateMemory(unittest.TestCase):
         self.assertTrue(self.km._validate_memory())
 
 
+class TestEmbeddingCache(unittest.TestCase):
+    """Test cases for EmbeddingCache class."""
+    
+    def test_cache_disabled_by_default(self):
+        """Test that cache is disabled when no config provided."""
+        cache = EmbeddingCache()
+        self.assertFalse(cache.enabled)
+        self.assertFalse(cache.is_available())
+    
+    def test_cache_disabled_explicitly(self):
+        """Test that cache respects enabled=False config."""
+        config: RedisConfig = {"enabled": False, "url": "redis://localhost:6379/0"}
+        cache = EmbeddingCache(config)
+        self.assertFalse(cache.enabled)
+        self.assertFalse(cache.is_available())
+    
+    def test_get_returns_none_when_disabled(self):
+        """Test that get returns None when cache is disabled."""
+        cache = EmbeddingCache()
+        result = cache.get("test text")
+        self.assertIsNone(result)
+    
+    def test_set_returns_false_when_disabled(self):
+        """Test that set returns False when cache is disabled."""
+        cache = EmbeddingCache()
+        result = cache.set("test text", [1.0, 2.0, 3.0])
+        self.assertFalse(result)
+    
+    def test_get_batch_returns_none_when_disabled(self):
+        """Test that get_batch returns None for all texts when disabled."""
+        cache = EmbeddingCache()
+        texts = ["text1", "text2"]
+        results = cache.get_batch(texts)
+        self.assertEqual(results, {"text1": None, "text2": None})
+    
+    def test_set_batch_returns_zero_when_disabled(self):
+        """Test that set_batch returns 0 when disabled."""
+        cache = EmbeddingCache()
+        embeddings = {"text1": [1.0, 2.0], "text2": [3.0, 4.0]}
+        result = cache.set_batch(embeddings)
+        self.assertEqual(result, 0)
+    
+    def test_clear_returns_zero_when_disabled(self):
+        """Test that clear returns 0 when disabled."""
+        cache = EmbeddingCache()
+        result = cache.clear()
+        self.assertEqual(result, 0)
+    
+    def test_get_stats_when_disabled(self):
+        """Test that get_stats returns correct info when disabled."""
+        cache = EmbeddingCache()
+        stats = cache.get_stats()
+        self.assertFalse(stats["enabled"])
+        self.assertFalse(stats["available"])
+        self.assertEqual(stats["cached_embeddings"], 0)
+    
+    def test_text_to_cache_key_deterministic(self):
+        """Test that cache key generation is deterministic."""
+        cache = EmbeddingCache()
+        key1 = cache._text_to_cache_key("test text")
+        key2 = cache._text_to_cache_key("test text")
+        self.assertEqual(key1, key2)
+    
+    def test_text_to_cache_key_different_texts(self):
+        """Test that different texts produce different keys."""
+        cache = EmbeddingCache()
+        key1 = cache._text_to_cache_key("text one")
+        key2 = cache._text_to_cache_key("text two")
+        self.assertNotEqual(key1, key2)
+    
+    def test_cache_key_format(self):
+        """Test that cache key has correct prefix."""
+        cache = EmbeddingCache()
+        key = cache._text_to_cache_key("test")
+        self.assertTrue(key.startswith("embedding:"))
+    
+    def test_redis_connection_success_mock(self):
+        """Test successful Redis connection with mock."""
+        # Create a cache with enabled=True
+        config: RedisConfig = {"enabled": True, "url": "redis://localhost:6379/0"}
+        cache = EmbeddingCache(config)
+        
+        # Manually set up the mock state
+        mock_client = MagicMock()
+        mock_client.ping.return_value = True
+        mock_client.get.return_value = '[1.0, 2.0, 3.0]'
+        
+        cache._redis_client = mock_client
+        cache._redis_available = True
+        
+        # Now test that operations work
+        self.assertTrue(cache.is_available())
+    
+    def test_redis_connection_failure_handled(self):
+        """Test Redis connection failure is handled gracefully."""
+        # When Redis isn't installed or connection fails, cache should be disabled
+        config: RedisConfig = {"enabled": True, "url": "redis://localhost:6379/0"}
+        cache = EmbeddingCache(config)
+        
+        # The _connect_redis method should have been called and failed
+        # (either because redis isn't installed or connection failed)
+        # The cache should gracefully handle this
+        self.assertFalse(cache.is_available())
+    
+    def test_cache_get_with_mock_client(self):
+        """Test successful cache get operation with mock client."""
+        config: RedisConfig = {"enabled": True, "url": "redis://localhost:6379/0"}
+        cache = EmbeddingCache(config)
+        
+        # Set up mock client
+        mock_client = MagicMock()
+        mock_client.get.return_value = '[1.0, 2.0, 3.0]'
+        cache._redis_client = mock_client
+        cache._redis_available = True
+        
+        result = cache.get("test text")
+        self.assertEqual(result, [1.0, 2.0, 3.0])
+    
+    def test_cache_set_with_mock_client(self):
+        """Test successful cache set operation with mock client."""
+        config: RedisConfig = {"enabled": True, "url": "redis://localhost:6379/0"}
+        cache = EmbeddingCache(config)
+        
+        # Set up mock client
+        mock_client = MagicMock()
+        cache._redis_client = mock_client
+        cache._redis_available = True
+        
+        result = cache.set("test text", [1.0, 2.0, 3.0])
+        self.assertTrue(result)
+        mock_client.setex.assert_called_once()
+
+
+class TestKnowledgeMemoryWithEmbeddingCache(unittest.TestCase):
+    """Test cases for KnowledgeMemory with EmbeddingCache integration."""
+    
+    def setUp(self):
+        """Create a temporary directory for testing."""
+        self.temp_dir = Path(tempfile.mkdtemp())
+    
+    def tearDown(self):
+        """Clean up temporary directory."""
+        shutil.rmtree(self.temp_dir, ignore_errors=True)
+    
+    def test_embedding_cache_initialized(self):
+        """Test that embedding cache is initialized."""
+        km = KnowledgeMemory(self.temp_dir)
+        cache = km.get_embedding_cache()
+        self.assertIsInstance(cache, EmbeddingCache)
+    
+    def test_embedding_cache_with_config(self):
+        """Test embedding cache with Redis config."""
+        config: KnowledgeMemoryConfig = {
+            "redis": {
+                "enabled": False,
+                "url": "redis://custom:6379/0",
+                "embedding_cache_ttl": 3600
+            }
+        }
+        km = KnowledgeMemory(self.temp_dir, config)
+        cache = km.get_embedding_cache()
+        
+        self.assertFalse(cache.enabled)
+        self.assertEqual(cache.redis_url, "redis://custom:6379/0")
+        self.assertEqual(cache.ttl, 3600)
+    
+    def test_get_cached_embedding_when_disabled(self):
+        """Test get_cached_embedding returns None when cache disabled."""
+        km = KnowledgeMemory(self.temp_dir)
+        result = km.get_cached_embedding("test text")
+        self.assertIsNone(result)
+    
+    def test_cache_embedding_when_disabled(self):
+        """Test cache_embedding returns False when cache disabled."""
+        km = KnowledgeMemory(self.temp_dir)
+        result = km.cache_embedding("test text", [1.0, 2.0])
+        self.assertFalse(result)
+    
+    def test_get_embedding_cache_stats(self):
+        """Test get_embedding_cache_stats returns stats dict."""
+        km = KnowledgeMemory(self.temp_dir)
+        stats = km.get_embedding_cache_stats()
+        
+        self.assertIn("enabled", stats)
+        self.assertIn("available", stats)
+        self.assertIn("cached_embeddings", stats)
+    
+    def test_statistics_includes_embedding_cache(self):
+        """Test that statistics includes embedding cache info."""
+        km = KnowledgeMemory(self.temp_dir)
+        stats = km.get_statistics()
+        
+        self.assertIn("embedding_cache", stats)
+        self.assertIsInstance(stats["embedding_cache"], dict)
+
+
+class TestChunkSizeConfiguration(unittest.TestCase):
+    """Test cases for chunk size configuration."""
+    
+    def setUp(self):
+        """Create a temporary directory for testing."""
+        self.temp_dir = Path(tempfile.mkdtemp())
+    
+    def tearDown(self):
+        """Clean up temporary directory."""
+        shutil.rmtree(self.temp_dir, ignore_errors=True)
+    
+    def test_default_chunk_size(self):
+        """Test default chunk size when not configured."""
+        km = KnowledgeMemory(self.temp_dir)
+        self.assertEqual(km.chunk_size, 600)
+        self.assertEqual(km.chunk_overlap, 100)
+    
+    def test_custom_chunk_size(self):
+        """Test custom chunk size from config."""
+        config: KnowledgeMemoryConfig = {
+            "chunk_size": 1000,
+            "chunk_overlap": 200
+        }
+        km = KnowledgeMemory(self.temp_dir, config)
+        
+        self.assertEqual(km.chunk_size, 1000)
+        self.assertEqual(km.chunk_overlap, 200)
+    
+    def test_statistics_includes_chunk_config(self):
+        """Test that statistics includes chunk configuration."""
+        config: KnowledgeMemoryConfig = {
+            "chunk_size": 800,
+            "chunk_overlap": 150
+        }
+        km = KnowledgeMemory(self.temp_dir, config)
+        stats = km.get_statistics()
+        
+        self.assertEqual(stats["chunk_size"], 800)
+        self.assertEqual(stats["chunk_overlap"], 150)
+
+
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestLargePDFProcessing(unittest.TestCase):
+    """Test cases for large PDF processing with caching."""
+    
+    def setUp(self):
+        """Create a temporary directory for testing."""
+        self.temp_dir = Path(tempfile.mkdtemp())
+    
+    def tearDown(self):
+        """Clean up temporary directory."""
+        shutil.rmtree(self.temp_dir, ignore_errors=True)
+    
+    def test_large_chunks_processing(self):
+        """Test processing many chunks similar to a large PDF."""
+        config: KnowledgeMemoryConfig = {
+            "chunk_size": 500,
+            "chunk_overlap": 50
+        }
+        km = KnowledgeMemory(self.temp_dir, config)
+        
+        # Simulate a large PDF with many chunks
+        num_chunks = 100
+        chunks = []
+        for i in range(num_chunks):
+            chunk = (
+                f"This is chunk number {i} containing important information. "
+                f"The science shows that fact {i} is significant because "
+                f"it demonstrates point {i} about the technology."
+            )
+            chunks.append(chunk)
+        
+        result = km.extract_knowledge_from_chunks(
+            chunks, "large_document.pdf", "largehash123"
+        )
+        
+        self.assertEqual(result["status"], "processed")
+        self.assertGreater(result["insights_extracted"], 0)
+        
+        stats = km.get_statistics()
+        self.assertEqual(stats["total_pdfs_processed"], 1)
+        self.assertEqual(stats["chunk_size"], 500)
+        self.assertEqual(stats["chunk_overlap"], 50)
+    
+    def test_multiple_large_pdfs(self):
+        """Test processing multiple large PDFs."""
+        km = KnowledgeMemory(self.temp_dir)
+        
+        # Process multiple "large" PDFs
+        for pdf_idx in range(5):
+            chunks = []
+            for i in range(50):
+                chunk = f"Document {pdf_idx} - Section {i}: Important content about topic {i}."
+                chunks.append(chunk)
+            
+            result = km.extract_knowledge_from_chunks(
+                chunks, f"document_{pdf_idx}.pdf", f"hash_{pdf_idx}"
+            )
+            self.assertEqual(result["status"], "processed")
+        
+        stats = km.get_statistics()
+        self.assertEqual(stats["total_pdfs_processed"], 5)
+    
+    def test_embedding_cache_integration_mock(self):
+        """Test that embedding cache is properly integrated."""
+        config: KnowledgeMemoryConfig = {
+            "redis": {
+                "enabled": True,
+                "url": "redis://localhost:6379/0",
+                "embedding_cache_ttl": 3600
+            }
+        }
+        km = KnowledgeMemory(self.temp_dir, config)
+        
+        # Get the cache and set up mock state
+        cache = km.get_embedding_cache()
+        mock_client = MagicMock()
+        cache._redis_client = mock_client
+        cache._redis_available = True
+        
+        # Test caching operation
+        text = "This is test content for embedding."
+        embedding = [0.1, 0.2, 0.3, 0.4, 0.5]
+        
+        success = km.cache_embedding(text, embedding)
+        self.assertTrue(success)
+        
+        # Verify setex was called
+        mock_client.setex.assert_called()

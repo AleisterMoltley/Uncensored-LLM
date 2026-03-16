@@ -153,9 +153,43 @@ curl -X POST http://localhost:7777/api/unload
     "chunk_size": 600,                 // RAG: Chunk size (characters)
     "chunk_overlap": 100,              // RAG: Overlap
     "max_memory_messages": 4,          // Conversation history length
-    "system_prompt": "..."             // Personality
+    "system_prompt": "...",            // Personality
+    "redis": {                         // Embedding cache (optional)
+        "enabled": false,              // Enable Redis caching
+        "url": "redis://localhost:6379/0",
+        "embedding_cache_ttl": 86400   // Cache TTL in seconds (24h)
+    }
 }
 ```
+
+### Redis Embedding Cache
+
+For improved performance with large PDFs, enable Redis-based embedding caching:
+
+1. **Install Redis**:
+   ```bash
+   # macOS
+   brew install redis && brew services start redis
+   
+   # Linux
+   apt-get install redis-server
+   ```
+
+2. **Enable in config.json**:
+   ```json
+   "redis": {
+       "enabled": true,
+       "url": "redis://localhost:6379/0",
+       "embedding_cache_ttl": 86400
+   }
+   ```
+
+3. **Install Python Redis package**:
+   ```bash
+   pip install redis
+   ```
+
+The cache stores text embeddings with configurable TTL, reducing redundant computation when processing similar or duplicate content.
 
 ## API Endpoints
 
@@ -184,6 +218,8 @@ curl -X POST http://localhost:7777/api/unload
 | GET | /api/knowledge/export | Export all knowledge for backup |
 | POST | /api/knowledge/import | Import knowledge from backup |
 | DELETE | /api/knowledge | Clear all knowledge memory |
+| GET | /api/knowledge/cache | Get embedding cache statistics |
+| DELETE | /api/knowledge/cache | Clear embedding cache |
 
 ### Twitter API Endpoints
 
