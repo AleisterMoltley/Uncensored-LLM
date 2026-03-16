@@ -247,10 +247,15 @@ class TestPydanticModels(unittest.TestCase):
         with self.assertRaises(ValidationError):
             InsightModel(content="", source="test")
     
+    def test_insight_model_invalid_zero_weight(self):
+        """Test that InsightModel rejects weight less than 1 (zero)."""
+        with self.assertRaises(ValidationError):
+            InsightModel(content="valid", weight=0)
+    
     def test_insight_model_invalid_negative_weight(self):
         """Test that InsightModel rejects negative weight."""
         with self.assertRaises(ValidationError):
-            InsightModel(content="valid", weight=0)
+            InsightModel(content="valid", weight=-1)
     
     def test_argument_model_valid(self):
         """Test valid ArgumentModel creation."""
