@@ -7,9 +7,192 @@ Uses compression to keep memory size bounded even after many PDFs.
 import hashlib
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Optional, Any
+from typing import Dict, List, Optional, Any, TypedDict
 
+from pydantic import BaseModel, Field, field_validator, ConfigDict
 from utils import PersistentStorage
+
+
+# ============================================================
+# TypedDict Definitions for Configurations and Return Types
+# ============================================================
+
+
+class KnowledgeMemoryConfig(TypedDict, total=False):
+    """Configuration dictionary for KnowledgeMemory initialization."""
+    max_knowledge_memory_mb: float
+    max_insights_per_topic: int
+    summary_threshold: int
+
+
+class ExtractionResult(TypedDict):
+    """Return type for extract_knowledge_from_chunks."""
+    status: str
+    filename: str
+    insights_extracted: int
+    arguments_extracted: int
+
+
+class AlreadyProcessedResult(TypedDict):
+    """Return type when a PDF has already been processed."""
+    status: str
+    filename: str
+
+
+class RelevantKnowledgeResult(TypedDict):
+    """Return type for get_relevant_knowledge."""
+    core_beliefs: List[Dict[str, Any]]
+    insights: List[Dict[str, Any]]
+    arguments: List[Dict[str, Any]]
+    topics_matched: List[str]
+
+
+class StatisticsResult(TypedDict):
+    """Return type for get_statistics."""
+    version: str
+    created: str
+    updated: str
+    total_pdfs_processed: int
+    total_insights: int
+    total_arguments: int
+    total_core_beliefs: int
+    topics_count: int
+    topics: List[str]
+    compressions_performed: int
+    file_size_bytes: int
+    file_size_mb: float
+
+
+class ExportResult(TypedDict):
+    """Return type for export_knowledge."""
+    version: str
+    created: str
+    updated: str
+    statistics: Dict[str, int]
+    topics: Dict[str, List[Dict[str, Any]]]
+    core_beliefs: List[Dict[str, Any]]
+    arguments: List[Dict[str, Any]]
+    source_hashes: List[str]
+    export_date: str
+
+
+# ============================================================
+# Pydantic Models for Data Validation
+# ============================================================
+
+
+class InsightModel(BaseModel):
+    """Pydantic model for validating insight entries."""
+    content: str = Field(..., min_length=1)
+    source: str = Field(default="unknown")
+    weight: int = Field(default=1, ge=1)
+    added: str = Field(default_factory=lambda: datetime.now().isoformat())
+    sources: Optional[List[str]] = None
+    merged_count: Optional[int] = None
+    relevance_score: Optional[float] = None
+
+    @field_validator('content')
+    @classmethod
+    def validate_content(cls, v: str) -> str:
+        """Ensure content is stripped of leading/trailing whitespace."""
+        return v.strip()
+
+
+class ArgumentModel(BaseModel):
+    """Pydantic model for validating argument entries."""
+    claim: str = Field(..., min_length=1)
+    source: str = Field(default="unknown")
+    type: str = Field(default="logical_argument")
+    strength: int = Field(default=1, ge=1)
+    added: str = Field(default_factory=lambda: datetime.now().isoformat())
+    context: Optional[List[str]] = None
+    relevance_score: Optional[float] = None
+
+    @field_validator('claim')
+    @classmethod
+    def validate_claim(cls, v: str) -> str:
+        """Ensure claim is stripped of leading/trailing whitespace."""
+        return v.strip()
+
+
+class CoreBeliefModel(BaseModel):
+    """Pydantic model for validating core belief entries."""
+    content: str = Field(..., min_length=1)
+    source: str = Field(default="user")
+    weight: int = Field(default=5, ge=1)
+    added: str = Field(default_factory=lambda: datetime.now().isoformat())
+
+    @field_validator('content')
+    @classmethod
+    def validate_content(cls, v: str) -> str:
+        """Ensure content is stripped of leading/trailing whitespace."""
+        return v.strip()
+
+
+class StatisticsModel(BaseModel):
+    """Pydantic model for validating statistics."""
+    total_pdfs_processed: int = Field(default=0, ge=0)
+    total_insights_extracted: int = Field(default=0, ge=0)
+    compressions_performed: int = Field(default=0, ge=0)
+
+
+class MemoryModel(BaseModel):
+    """Pydantic model for validating the entire memory structure."""
+    version: str = Field(default="1.0")
+    created: str = Field(default_factory=lambda: datetime.now().isoformat())
+    updated: str = Field(default_factory=lambda: datetime.now().isoformat())
+    statistics: StatisticsModel = Field(default_factory=StatisticsModel)
+    topics: Dict[str, List[InsightModel]] = Field(default_factory=dict)
+    core_beliefs: List[CoreBeliefModel] = Field(default_factory=list)
+    arguments: List[ArgumentModel] = Field(default_factory=list)
+    source_hashes: List[str] = Field(default_factory=list)
+
+    model_config = ConfigDict(validate_assignment=True)
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert model to dictionary for storage."""
+        data = self.model_dump()
+        # Convert nested models to dicts
+        data["statistics"] = self.statistics.model_dump()
+        data["topics"] = {
+            topic: [insight.model_dump() for insight in insights]
+            for topic, insights in self.topics.items()
+        }
+        data["core_beliefs"] = [belief.model_dump() for belief in self.core_beliefs]
+        data["arguments"] = [arg.model_dump() for arg in self.arguments]
+        return data
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "MemoryModel":
+        """Create model from dictionary (handles raw dict data)."""
+        # Parse statistics
+        statistics = StatisticsModel(**data.get("statistics", {}))
+
+        # Parse topics
+        topics: Dict[str, List[InsightModel]] = {}
+        for topic, insights in data.get("topics", {}).items():
+            topics[topic] = [InsightModel(**insight) for insight in insights]
+
+        # Parse core beliefs
+        core_beliefs = [
+            CoreBeliefModel(**belief) for belief in data.get("core_beliefs", [])
+        ]
+
+        # Parse arguments
+        arguments = [
+            ArgumentModel(**arg) for arg in data.get("arguments", [])
+        ]
+
+        return cls(
+            version=data.get("version", "1.0"),
+            created=data.get("created", datetime.now().isoformat()),
+            updated=data.get("updated", datetime.now().isoformat()),
+            statistics=statistics,
+            topics=topics,
+            core_beliefs=core_beliefs,
+            arguments=arguments,
+            source_hashes=data.get("source_hashes", [])
+        )
 
 # Default configuration
 DEFAULT_MAX_MEMORY_SIZE_MB = 10  # Maximum memory file size in MB
@@ -34,38 +217,35 @@ class KnowledgeMemory:
     - Shapes bot personality based on learned knowledge
     """
     
-    def __init__(self, memory_dir: Path, config: Optional[Dict] = None):
+    def __init__(
+        self,
+        memory_dir: Path,
+        config: Optional[KnowledgeMemoryConfig] = None
+    ):
         """
         Initialize knowledge memory.
         
         Args:
             memory_dir: Directory to store memory files
-            config: Configuration dict with optional settings
+            config: Configuration TypedDict with optional settings
         """
         self.memory_dir = Path(memory_dir)
         self.memory_dir.mkdir(exist_ok=True)
         
-        self.config = config or {}
+        self.config: KnowledgeMemoryConfig = config or {}
         self.max_size_mb = self.config.get("max_knowledge_memory_mb", DEFAULT_MAX_MEMORY_SIZE_MB)
         self.max_insights_per_topic = self.config.get("max_insights_per_topic", DEFAULT_MAX_INSIGHTS_PER_TOPIC)
         self.summary_threshold = self.config.get("summary_threshold", DEFAULT_SUMMARY_THRESHOLD)
         
         self.memory_file = self.memory_dir / "knowledge_memory.json.gz"
-        self._default_memory: Dict[str, Any] = {
-            "version": "1.0",
-            "created": datetime.now().isoformat(),
-            "updated": datetime.now().isoformat(),
-            "statistics": {
-                "total_pdfs_processed": 0,
-                "total_insights_extracted": 0,
-                "compressions_performed": 0
-            },
-            "topics": {},  # Topic -> list of insights
-            "core_beliefs": [],  # Most important, frequently reinforced beliefs
-            "arguments": [],  # Arguments and counter-arguments learned
-            "source_hashes": []  # Track which PDFs have been processed
-        }
-        self.memory: Dict[str, Any] = dict(self._default_memory)
+        
+        # Create default memory model for initialization
+        self._default_memory_model = MemoryModel()
+        
+        # Internal memory dict (for compatibility with existing code)
+        # Uses Pydantic model for validation
+        self._memory_model: MemoryModel = MemoryModel()
+        self.memory: Dict[str, Any] = self._memory_model.to_dict()
         
         # Initialize persistent storage with compression callback
         self._storage = PersistentStorage(
@@ -85,18 +265,40 @@ class KnowledgeMemory:
         self._compress_memory()
         return self.memory
     
-    def _load(self):
-        """Load memory from compressed file."""
+    def _load(self) -> None:
+        """Load memory from compressed file with Pydantic validation."""
         loaded = self._storage.load(default={})
-        # Merge with defaults to handle version upgrades
-        for key in self._default_memory:
-            if key in loaded:
-                self.memory[key] = loaded[key]
+        if loaded:
+            try:
+                # Validate and parse loaded data using Pydantic model
+                self._memory_model = MemoryModel.from_dict(loaded)
+                self.memory = self._memory_model.to_dict()
+            except Exception:
+                # Fall back to default memory if validation fails
+                self._memory_model = MemoryModel()
+                self.memory = self._memory_model.to_dict()
+        else:
+            # Use default memory
+            self._memory_model = MemoryModel()
+            self.memory = self._memory_model.to_dict()
     
-    def _save(self):
+    def _save(self) -> None:
         """Save memory to compressed file with size check."""
         self.memory["updated"] = datetime.now().isoformat()
         self._storage.save(self.memory)
+    
+    def _validate_memory(self) -> bool:
+        """
+        Validate current memory state using Pydantic model.
+        
+        Returns:
+            True if memory is valid, False otherwise
+        """
+        try:
+            self._memory_model = MemoryModel.from_dict(self.memory)
+            return True
+        except Exception:
+            return False
     
     def _compress_memory(self):
         """
@@ -136,20 +338,22 @@ class KnowledgeMemory:
                 self.memory["core_beliefs"]
             )[:20]
     
-    def _merge_similar_insights(self, insights: List[Dict]) -> List[Dict]:
+    def _merge_similar_insights(
+        self, insights: List[Dict[str, Any]]
+    ) -> List[Dict[str, Any]]:
         """Merge insights with similar content to reduce redundancy."""
         if len(insights) <= 5:
             return insights
         
-        merged = []
-        used_indices = set()
+        merged: List[Dict[str, Any]] = []
+        used_indices: set[int] = set()
         
         for i, insight in enumerate(insights):
             if i in used_indices:
                 continue
             
             # Find similar insights
-            similar_group = [insight]
+            similar_group: List[Dict[str, Any]] = [insight]
             content_i = insight.get("content", "").lower()
             
             for j, other in enumerate(insights[i+1:], start=i+1):
@@ -169,7 +373,7 @@ class KnowledgeMemory:
             
             # Merge the group into one insight with combined weight
             if len(similar_group) > 1:
-                merged_insight = {
+                merged_insight: Dict[str, Any] = {
                     "content": similar_group[0]["content"],  # Keep first content
                     "weight": sum(s.get("weight", 1) for s in similar_group),
                     "sources": list(set(
@@ -186,7 +390,7 @@ class KnowledgeMemory:
         
         return merged
     
-    def _consolidate_beliefs(self, beliefs: List[Dict]) -> List[Dict]:
+    def _consolidate_beliefs(self, beliefs: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """Consolidate beliefs by merging similar ones and boosting weights."""
         return self._merge_similar_insights(beliefs)
     
@@ -195,7 +399,7 @@ class KnowledgeMemory:
         chunks: List[str],
         source_filename: str,
         file_hash: str
-    ) -> Dict[str, Any]:
+    ) -> ExtractionResult | AlreadyProcessedResult:
         """
         Extract knowledge from PDF chunks and store in memory.
         
@@ -205,14 +409,16 @@ class KnowledgeMemory:
             file_hash: Hash of the PDF file for tracking
             
         Returns:
-            Statistics about extracted knowledge
+            ExtractionResult with statistics about extracted knowledge,
+            or AlreadyProcessedResult if the PDF was already processed
         """
         # Check if already processed
         if file_hash in self.memory["source_hashes"]:
-            return {
+            result: AlreadyProcessedResult = {
                 "status": "already_processed",
                 "filename": source_filename
             }
+            return result
         
         extracted_insights = 0
         extracted_arguments = 0
@@ -242,23 +448,24 @@ class KnowledgeMemory:
         # Save
         self._save()
         
-        return {
+        result: ExtractionResult = {
             "status": "processed",
             "filename": source_filename,
             "insights_extracted": extracted_insights,
             "arguments_extracted": extracted_arguments
         }
+        return result
     
     def _extract_insights_from_text(
         self,
         text: str,
         source: str
-    ) -> Dict[str, List[Dict]]:
+    ) -> Dict[str, List[Dict[str, Any]]]:
         """
         Extract key insights from text and categorize by topic.
         Uses heuristics to identify important statements.
         """
-        insights_by_topic: Dict[str, List[Dict]] = {}
+        insights_by_topic: Dict[str, List[Dict[str, Any]]] = {}
         
         # Split into sentences
         sentences = self._split_into_sentences(text)
@@ -292,12 +499,12 @@ class KnowledgeMemory:
         self,
         text: str,
         source: str
-    ) -> List[Dict]:
+    ) -> List[Dict[str, Any]]:
         """
         Extract arguments (claims with reasoning) from text.
         Looks for patterns indicating logical arguments.
         """
-        arguments = []
+        arguments: List[Dict[str, Any]] = []
         
         # Argument indicators (works for both German and English)
         argument_patterns = [
@@ -318,7 +525,7 @@ class KnowledgeMemory:
             for pattern in argument_patterns:
                 if pattern in sentence_lower:
                     # Try to identify claim and evidence
-                    argument = {
+                    argument: Dict[str, Any] = {
                         "claim": sentence.strip(),
                         "source": source,
                         "type": "logical_argument",
@@ -327,7 +534,7 @@ class KnowledgeMemory:
                     }
                     
                     # Add context from surrounding sentences
-                    context = []
+                    context: List[str] = []
                     if i > 0:
                         context.append(sentences[i-1].strip())
                     if i < len(sentences) - 1:
@@ -420,13 +627,13 @@ class KnowledgeMemory:
         
         return "general"
     
-    def _check_and_compress_topics(self):
+    def _check_and_compress_topics(self) -> None:
         """Check if any topic has too many insights and compress if needed."""
         for topic, insights in self.memory["topics"].items():
             if len(insights) > self.summary_threshold:
                 self.memory["topics"][topic] = self._merge_similar_insights(insights)
     
-    def add_core_belief(self, belief: str, source: str = "user", weight: int = 5):
+    def add_core_belief(self, belief: str, source: str = "user", weight: int = 5) -> None:
         """
         Add a core belief that strongly shapes the bot's personality.
         
@@ -435,12 +642,13 @@ class KnowledgeMemory:
             source: Where this belief came from
             weight: Importance weight (higher = more influential)
         """
-        self.memory["core_beliefs"].append({
-            "content": belief,
-            "source": source,
-            "weight": weight,
-            "added": datetime.now().isoformat()
-        })
+        # Validate using Pydantic model
+        validated_belief = CoreBeliefModel(
+            content=belief,
+            source=source,
+            weight=weight
+        )
+        self.memory["core_beliefs"].append(validated_belief.model_dump())
         self._save()
     
     def get_relevant_knowledge(
@@ -448,7 +656,7 @@ class KnowledgeMemory:
         query: str,
         max_insights: int = 10,
         max_arguments: int = 5
-    ) -> Dict[str, Any]:
+    ) -> RelevantKnowledgeResult:
         """
         Get knowledge relevant to a query for use in chat context.
         
@@ -458,7 +666,7 @@ class KnowledgeMemory:
             max_arguments: Maximum number of arguments to return
             
         Returns:
-            Dict with relevant knowledge components
+            RelevantKnowledgeResult with relevant knowledge components
         """
         query_lower = query.lower()
         query_words = set(query_lower.split())
@@ -494,7 +702,7 @@ class KnowledgeMemory:
         top_insights = relevant_insights[:max_insights]
         
         # Find relevant arguments
-        relevant_arguments = []
+        relevant_arguments: List[Dict[str, Any]] = []
         for arg in self.memory["arguments"]:
             claim_lower = arg.get("claim", "").lower()
             claim_words = set(claim_lower.split())
@@ -508,12 +716,13 @@ class KnowledgeMemory:
         relevant_arguments.sort(key=lambda x: x.get("relevance_score", 0), reverse=True)
         top_arguments = relevant_arguments[:max_arguments]
         
-        return {
+        result: RelevantKnowledgeResult = {
             "core_beliefs": self.memory["core_beliefs"][:5],
             "insights": top_insights,
             "arguments": top_arguments,
             "topics_matched": relevant_topics[:5]
         }
+        return result
     
     def format_knowledge_for_prompt(self, query: str) -> str:
         """
@@ -558,7 +767,7 @@ class KnowledgeMemory:
             + "\n=== END LEARNED KNOWLEDGE ==="
         )
     
-    def compare_arguments(self, topic: str) -> List[Dict]:
+    def compare_arguments(self, topic: str) -> List[Dict[str, Any]]:
         """
         Compare different arguments learned about a topic.
         Useful for rational, human-like reasoning.
@@ -570,7 +779,7 @@ class KnowledgeMemory:
             List of related arguments for comparison
         """
         topic_lower = topic.lower()
-        related_args = []
+        related_args: List[Dict[str, Any]] = []
         
         for arg in self.memory["arguments"]:
             claim_lower = arg.get("claim", "").lower()
@@ -581,7 +790,7 @@ class KnowledgeMemory:
         related_args.sort(key=lambda x: x.get("strength", 1), reverse=True)
         return related_args[:10]
     
-    def get_statistics(self) -> Dict[str, Any]:
+    def get_statistics(self) -> StatisticsResult:
         """Get memory statistics."""
         total_insights = sum(
             len(insights) for insights in self.memory["topics"].values()
@@ -592,7 +801,7 @@ class KnowledgeMemory:
         if self.memory_file.exists():
             file_size_bytes = self.memory_file.stat().st_size
         
-        return {
+        result: StatisticsResult = {
             "version": self.memory["version"],
             "created": self.memory["created"],
             "updated": self.memory["updated"],
@@ -606,33 +815,30 @@ class KnowledgeMemory:
             "file_size_bytes": file_size_bytes,
             "file_size_mb": round(file_size_bytes / (1024 * 1024), 3)
         }
+        return result
     
-    def clear(self):
+    def clear(self) -> None:
         """Clear all knowledge memory."""
-        self.memory = {
-            "version": "1.0",
-            "created": datetime.now().isoformat(),
-            "updated": datetime.now().isoformat(),
-            "statistics": {
-                "total_pdfs_processed": 0,
-                "total_insights_extracted": 0,
-                "compressions_performed": 0
-            },
-            "topics": {},
-            "core_beliefs": [],
-            "arguments": [],
-            "source_hashes": []
-        }
+        self._memory_model = MemoryModel()
+        self.memory = self._memory_model.to_dict()
         self._save()
     
-    def export_knowledge(self) -> Dict[str, Any]:
+    def export_knowledge(self) -> ExportResult:
         """Export knowledge memory for backup or inspection."""
-        return {
-            **self.memory,
+        result: ExportResult = {
+            "version": self.memory["version"],
+            "created": self.memory["created"],
+            "updated": self.memory["updated"],
+            "statistics": self.memory["statistics"],
+            "topics": self.memory["topics"],
+            "core_beliefs": self.memory["core_beliefs"],
+            "arguments": self.memory["arguments"],
+            "source_hashes": self.memory["source_hashes"],
             "export_date": datetime.now().isoformat()
         }
+        return result
     
-    def import_knowledge(self, data: Dict[str, Any]):
+    def import_knowledge(self, data: Dict[str, Any]) -> None:
         """Import knowledge from backup."""
         if "topics" in data:
             for topic, insights in data["topics"].items():
