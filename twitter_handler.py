@@ -2,6 +2,7 @@
 Twitter Integration Handler for LocalLLM
 Scans Twitter for tweets matching assigned tasks and responds using the LLM.
 Supports both thread-based and Celery-based background scanning.
+Extended with advanced Tweepy v2 filters for precise tweet filtering.
 """
 
 import logging
@@ -9,9 +10,47 @@ import threading
 import time
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Optional, Dict, List, Any, Callable
+from typing import Optional, Dict, List, Any, Callable, TypedDict
 
 from utils import PersistentStorage
+
+
+class TwitterV2Filters(TypedDict, total=False):
+    """
+    Configuration for Twitter API v2 search filters.
+    These filters extend the basic keyword search with advanced operators.
+    """
+    # Content type filters
+    has_media: bool  # Only tweets with media (images/videos)
+    has_links: bool  # Only tweets with links
+    has_hashtags: bool  # Only tweets with hashtags
+    has_mentions: bool  # Only tweets with @mentions
+    has_images: bool  # Only tweets with images
+    has_videos: bool  # Only tweets with videos
+    has_geo: bool  # Only tweets with geo data
+    
+    # Exclusion filters
+    exclude_retweets: bool  # Exclude retweets (default True)
+    exclude_replies: bool  # Exclude replies (default True)
+    exclude_quotes: bool  # Exclude quote tweets
+    exclude_nullcast: bool  # Exclude promoted tweets
+    
+    # Engagement filters
+    min_retweets: int  # Minimum retweet count
+    min_likes: int  # Minimum like count
+    min_replies: int  # Minimum reply count
+    
+    # Content filters
+    language: str  # Tweet language (ISO 639-1, e.g., 'en', 'de')
+    is_verified: bool  # Only from verified accounts
+    is_not_nullcast: bool  # Exclude promoted content
+    
+    # Context filters (requires Academic Research access for some)
+    conversation_id: str  # Only tweets in specific conversation
+    context_entity_ids: List[str]  # Twitter context entity IDs
+    
+    # Time filters
+    max_age_hours: int  # Maximum age in hours (default 3)
 
 # Logger for Twitter handler
 logger = logging.getLogger("llm_servant.twitter")
@@ -151,7 +190,7 @@ class TwitterHandler:
             return False
     
     def get_status(self) -> Dict:
-        """Get current Twitter handler status including background task info."""
+        """Get current Twitter handler status including background task info and v2 filters."""
         status = {
             "configured": bool(self.api),
             "scanning": self._scanner_running or self._celery_task_id is not None,
@@ -161,7 +200,8 @@ class TwitterHandler:
             "auto_reply": self.config.get("auto_reply", False),
             "tweets_found_total": len(self._history),
             "tweets_replied_total": len([h for h in self._history if h.get("replied")]),
-            "backend": "celery" if self._use_celery else "thread"
+            "backend": "celery" if self._use_celery else "thread",
+            "v2_filters": self.config.get("v2_filters", {})
         }
         
         # Add Celery task info if applicable
@@ -176,13 +216,152 @@ class TwitterHandler:
         
         return status
     
-    def search_tweets(self, max_results: int = 20) -> List[Dict]:
+    def _build_v2_query(self, keywords: List[str], 
+                         v2_filters: Optional[TwitterV2Filters] = None) -> str:
         """
-        Search for tweets matching the configured task.
-        Only returns tweets from the last 3 hours.
+        Build a Twitter API v2 search query with advanced filters.
+        
+        Args:
+            keywords: List of search keywords
+            v2_filters: Optional TwitterV2Filters configuration
+            
+        Returns:
+            Formatted query string for Twitter API v2
+        """
+        if not v2_filters:
+            v2_filters = self.config.get("v2_filters", {})
+        
+        # Build keyword part
+        query_parts = []
+        for kw in keywords:
+            if " " in kw:
+                query_parts.append(f'"{kw}"')
+            else:
+                query_parts.append(kw)
+        
+        query = f"({' OR '.join(query_parts)})"
+        
+        # Add content type filters (has: operators)
+        if v2_filters.get("has_media"):
+            query += " has:media"
+        if v2_filters.get("has_links"):
+            query += " has:links"
+        if v2_filters.get("has_hashtags"):
+            query += " has:hashtags"
+        if v2_filters.get("has_mentions"):
+            query += " has:mentions"
+        if v2_filters.get("has_images"):
+            query += " has:images"
+        if v2_filters.get("has_videos"):
+            query += " has:videos"
+        if v2_filters.get("has_geo"):
+            query += " has:geo"
+        
+        # Add exclusion filters (is: and -is: operators)
+        exclude_retweets = v2_filters.get("exclude_retweets", True)
+        if exclude_retweets:
+            query += " -is:retweet"
+        
+        exclude_replies = v2_filters.get("exclude_replies", True)
+        if exclude_replies:
+            query += " -is:reply"
+        
+        if v2_filters.get("exclude_quotes"):
+            query += " -is:quote"
+        
+        if v2_filters.get("exclude_nullcast") or v2_filters.get("is_not_nullcast"):
+            query += " -is:nullcast"
+        
+        # Add verified filter
+        if v2_filters.get("is_verified"):
+            query += " is:verified"
+        
+        # Add language filter (use v2_filters or fallback to default)
+        language = v2_filters.get("language", "en")
+        if language:
+            query += f" lang:{language}"
+        
+        # Add conversation filter
+        conversation_id = v2_filters.get("conversation_id")
+        if conversation_id:
+            query += f" conversation_id:{conversation_id}"
+        
+        # Add context entity filters
+        context_entities = v2_filters.get("context_entity_ids", [])
+        for entity_id in context_entities:
+            query += f" context:{entity_id}"
+        
+        return query
+    
+    def _filter_by_engagement(self, tweets: List[Dict], 
+                               v2_filters: Optional[TwitterV2Filters] = None) -> List[Dict]:
+        """
+        Filter tweets by engagement metrics (applied post-search).
+        
+        Args:
+            tweets: List of tweet dictionaries
+            v2_filters: Optional TwitterV2Filters configuration
+            
+        Returns:
+            Filtered list of tweets
+        """
+        if not v2_filters:
+            v2_filters = self.config.get("v2_filters", {})
+        
+        min_retweets = v2_filters.get("min_retweets", 0)
+        min_likes = v2_filters.get("min_likes", 0)
+        min_replies = v2_filters.get("min_replies", 0)
+        
+        # If no engagement filters, return all tweets
+        if not (min_retweets or min_likes or min_replies):
+            return tweets
+        
+        filtered = []
+        for tweet in tweets:
+            metrics = tweet.get("metrics", {})
+            retweets = metrics.get("retweet_count", 0)
+            likes = metrics.get("like_count", 0)
+            replies = metrics.get("reply_count", 0)
+            
+            if retweets >= min_retweets and likes >= min_likes and replies >= min_replies:
+                filtered.append(tweet)
+        
+        return filtered
+    
+    def get_v2_filters(self) -> TwitterV2Filters:
+        """
+        Get the current v2 filter configuration.
+        
+        Returns:
+            Current v2 filter settings
+        """
+        return self.config.get("v2_filters", {})
+    
+    def set_v2_filters(self, filters: TwitterV2Filters) -> Dict:
+        """
+        Update the v2 filter configuration.
+        
+        Args:
+            filters: New filter settings to apply
+            
+        Returns:
+            Updated status
+        """
+        self.config["v2_filters"] = filters
+        return {
+            "success": True,
+            "v2_filters": filters
+        }
+    
+    def search_tweets(self, max_results: int = 20, 
+                      v2_filters: Optional[TwitterV2Filters] = None) -> List[Dict]:
+        """
+        Search for tweets matching the configured task with extended v2 filters.
+        Uses Twitter API v2 operators for precise filtering.
         
         Args:
             max_results: Maximum number of tweets to return
+            v2_filters: Optional v2 filters (uses config if not provided)
             
         Returns:
             List of tweet dictionaries
@@ -194,29 +373,55 @@ class TwitterHandler:
         if not keywords:
             return []
         
-        # Build search query from keywords
-        query_parts = []
-        for kw in keywords:
-            if " " in kw:
-                query_parts.append(f'"{kw}"')
-            else:
-                query_parts.append(kw)
+        # Use provided filters or get from config
+        if v2_filters is None:
+            v2_filters = self.config.get("v2_filters", {})
         
-        # Exclude retweets and replies to get original content
-        query = f"({' OR '.join(query_parts)}) -is:retweet -is:reply lang:en"
+        # Build the v2 query with advanced filters
+        query = self._build_v2_query(keywords, v2_filters)
         
-        # Calculate time 3 hours ago
-        three_hours_ago = datetime.now(timezone.utc) - timedelta(hours=3)
+        # Calculate time window (use max_age_hours from filters or default 3)
+        max_age_hours = v2_filters.get("max_age_hours", 3)
+        start_time = datetime.now(timezone.utc) - timedelta(hours=max_age_hours)
         
         try:
+            # Extended tweet fields for v2 API
+            tweet_fields = [
+                "created_at", 
+                "author_id", 
+                "public_metrics", 
+                "lang",
+                "context_annotations",  # Topic/entity context
+                "entities",  # URLs, mentions, hashtags, etc.
+                "geo",  # Geographic information
+                "possibly_sensitive",  # Content sensitivity flag
+                "source"  # Client used to post
+            ]
+            
+            # Extended user fields
+            user_fields = [
+                "username", 
+                "name",
+                "verified",  # Verification status
+                "description",  # User bio
+                "public_metrics"  # Follower/following counts
+            ]
+            
+            # Expanded data inclusions
+            expansions = [
+                "author_id",
+                "geo.place_id",  # Geographic data
+                "entities.mentions.username"  # Mentioned users
+            ]
+            
             # Search using Twitter API v2
             response = self.client.search_recent_tweets(
                 query=query,
                 max_results=min(max_results, 100),
-                start_time=three_hours_ago,
-                tweet_fields=["created_at", "author_id", "public_metrics", "lang"],
-                user_fields=["username", "name"],
-                expansions=["author_id"]
+                start_time=start_time,
+                tweet_fields=tweet_fields,
+                user_fields=user_fields,
+                expansions=expansions
             )
             
             tweets = []
@@ -227,29 +432,67 @@ class TwitterHandler:
                 for user in response.includes["users"]:
                     users[user.id] = {
                         "username": user.username,
-                        "name": user.name
+                        "name": user.name,
+                        "verified": getattr(user, "verified", False),
+                        "description": getattr(user, "description", ""),
+                        "metrics": getattr(user, "public_metrics", {})
                     }
             
             # Process tweets
             if response.data:
                 for tweet in response.data:
                     tweet_age = datetime.now(timezone.utc) - tweet.created_at
-                    if tweet_age.total_seconds() <= 3 * 3600:  # 3 hours in seconds
+                    max_age_seconds = max_age_hours * 3600
+                    
+                    if tweet_age.total_seconds() <= max_age_seconds:
                         user_info = users.get(tweet.author_id, {})
+                        
+                        # Extract context annotations if available
+                        context = []
+                        if hasattr(tweet, "context_annotations") and tweet.context_annotations:
+                            for annotation in tweet.context_annotations:
+                                domain = annotation.get("domain", {})
+                                entity = annotation.get("entity", {})
+                                context.append({
+                                    "domain": domain.get("name", ""),
+                                    "entity": entity.get("name", "")
+                                })
+                        
+                        # Extract entities if available
+                        entities = {}
+                        if hasattr(tweet, "entities") and tweet.entities:
+                            entities = {
+                                "hashtags": [h.get("tag", "") for h in tweet.entities.get("hashtags", [])],
+                                "mentions": [m.get("username", "") for m in tweet.entities.get("mentions", [])],
+                                "urls": [u.get("expanded_url", "") for u in tweet.entities.get("urls", [])]
+                            }
+                        
                         tweets.append({
                             "id": str(tweet.id),
                             "text": tweet.text,
                             "author_id": str(tweet.author_id),
                             "author_username": user_info.get("username", "unknown"),
                             "author_name": user_info.get("name", "Unknown"),
+                            "author_verified": user_info.get("verified", False),
+                            "author_description": user_info.get("description", ""),
+                            "author_metrics": user_info.get("metrics", {}),
                             "created_at": tweet.created_at.isoformat(),
                             "age_minutes": int(tweet_age.total_seconds() / 60),
-                            "metrics": tweet.public_metrics if tweet.public_metrics else {}
+                            "metrics": tweet.public_metrics if tweet.public_metrics else {},
+                            "lang": getattr(tweet, "lang", ""),
+                            "context_annotations": context,
+                            "entities": entities,
+                            "possibly_sensitive": getattr(tweet, "possibly_sensitive", False),
+                            "source": getattr(tweet, "source", "")
                         })
+            
+            # Apply post-search engagement filters
+            tweets = self._filter_by_engagement(tweets, v2_filters)
             
             return tweets
             
         except Exception as e:
+            logger.error("Twitter search error: %s", e)
             print(f"⚠️ Twitter search error: {e}")
             return []
     
