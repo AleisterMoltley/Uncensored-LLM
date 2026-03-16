@@ -10,6 +10,7 @@ LOCAL LLM SERVANT v2 — Optimized RAG Server
 import os
 import json
 import uuid
+import time
 import hashlib
 import logging
 import subprocess
@@ -2497,13 +2498,15 @@ def stream_logs():
     """Stream logs in real-time via Server-Sent Events."""
     def generate():
         last_idx = len(_log_buffer)
+        last_heartbeat = time.time()
+        heartbeat_interval = 10  # seconds
+        poll_interval = 1.0  # seconds
         
         # Send initial connection message
         yield f"data: {json.dumps({'type': 'connected', 'timestamp': datetime.now().isoformat()})}\n\n"
         
         while True:
-            import time
-            time.sleep(0.5)  # Poll interval
+            time.sleep(poll_interval)
             
             # Check for new logs
             current_len = len(_log_buffer)
@@ -2513,8 +2516,11 @@ def stream_logs():
                     yield f"data: {json.dumps({'type': 'log', 'log': log})}\n\n"
                 last_idx = current_len
             
-            # Send heartbeat every 10 seconds to keep connection alive
-            yield f"data: {json.dumps({'type': 'heartbeat', 'timestamp': datetime.now().isoformat()})}\n\n"
+            # Send heartbeat at the specified interval to keep connection alive
+            current_time = time.time()
+            if current_time - last_heartbeat >= heartbeat_interval:
+                yield f"data: {json.dumps({'type': 'heartbeat', 'timestamp': datetime.now().isoformat()})}\n\n"
+                last_heartbeat = current_time
     
     return Response(
         stream_with_context(generate()),
