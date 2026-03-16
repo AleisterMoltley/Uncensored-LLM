@@ -118,10 +118,10 @@ class TestTabooManager(unittest.TestCase):
         
         prompt = self.tm.get_active_taboos_for_prompt()
         
-        self.assertIn("WICHTIGE EINSCHRÄNKUNGEN", prompt)
+        self.assertIn("IMPORTANT USER-DEFINED RESTRICTIONS", prompt)
         self.assertIn("No family discussions", prompt)
         self.assertIn("No violent content", prompt)
-        self.assertIn("AUSDRÜCKLICH VERBOTEN", prompt)
+        self.assertIn("EXPLICITLY FORBIDDEN", prompt)
     
     def test_get_active_taboos_for_prompt_excludes_inactive(self):
         """Test that inactive taboos are excluded from prompt."""
